@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>SPRINT MASTER 3000 - ESP32 100m Dash</title>
+<style>
+  :root{
+    --sky-top:#160f30;
+    --neon-cyan:#00e5ff;
+    --neon-pink:#ff2e7e;
+    --gold:#ffd23f;
+    --panel-bg: rgba(10,8,30,.55);
+    --panel-border: rgba(255,255,255,.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;overflow:hidden;background:#000;height:100%;width:100%;
+    font-family:-apple-system,"Segoe UI",system-ui,"Microsoft JhengHei","PingFang TC",sans-serif;
+    -webkit-user-select:none;user-select:none;}
+  #game{display:block;width:100vw;height:100vh;touch-action:none;}
+  #ui{position:fixed;inset:0;pointer-events:none;color:#fff;}
+  .panel{background:var(--panel-bg);border:1px solid var(--panel-border);backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);border-radius:14px;
+    box-shadow:0 8px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);}
+
+  .hud-top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .time-box{padding:8px 18px;font-variant-numeric:tabular-nums;font-weight:800;
+    font-size:clamp(20px,4vw,30px);letter-spacing:1px;text-shadow:0 0 12px var(--neon-cyan);}
+  .progress-wrap{flex:1;max-width:340px;padding:8px 14px;}
+  .progress-track{height:10px;border-radius:6px;background:rgba(255,255,255,.12);overflow:hidden;position:relative;}
+  .progress-fill{height:100%;width:0%;border-radius:6px;
+    background:linear-gradient(90deg,var(--neon-cyan),var(--neon-pink));
+    background-size:200% 100%;animation:flow 1.2s linear infinite;box-shadow:0 0 10px var(--neon-cyan);}
+  @keyframes flow{ from{background-position:0 0;} to{background-position:-200% 0;} }
+  .progress-label{font-size:11px;opacity:.8;margin-top:4px;text-align:right;font-variant-numeric:tabular-nums;}
+  .ws-box{padding:8px 12px;display:flex;align-items:center;gap:8px;font-size:12px;white-space:nowrap;}
+  .ws-dot{width:10px;height:10px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 8px #ff3b3b;transition:.2s;flex:none;}
+  .ws-dot.connected{background:#33ff8a;box-shadow:0 0 10px #33ff8a;}
+
+  .hud-bottom{position:absolute;bottom:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;}
+  .key-indicator{display:flex;gap:8px;padding:8px;}
+  .key-btn{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:16px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+    transition:transform .08s, background .08s, box-shadow .08s;}
+  .key-btn.active{transform:scale(1.18);background:var(--neon-cyan);color:#001018;box-shadow:0 0 18px var(--neon-cyan);}
+  .key-btn.bad{transform:scale(1.1);background:#ff3b3b;color:#fff;box-shadow:0 0 18px #ff3b3b;}
+  .best-badge{padding:10px 16px;font-size:12px;opacity:.85;white-space:nowrap;}
+
+  .combo-big{position:absolute;left:50%;top:19%;transform:translate(-50%,-50%);
+    font-weight:900;letter-spacing:2px;text-align:center;pointer-events:none;
+    font-size:clamp(32px,8.5vw,84px);color:#fff;text-shadow:0 0 10px rgba(0,0,0,.5),0 0 24px rgba(255,255,255,.55);
+    opacity:0;transition:opacity .15s;}
+  .combo-big.show{opacity:1;}
+  .combo-big.pop{animation:comboPop .35s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes comboPop{0%{transform:translate(-50%,-50%) scale(0.55);}60%{transform:translate(-50%,-50%) scale(1.3);}100%{transform:translate(-50%,-50%) scale(1);}}
+  .combo-big.hot{color:var(--gold);text-shadow:0 0 10px rgba(0,0,0,.5),0 0 32px var(--gold);}
+  .combo-big.break{color:#ff3b3b;text-shadow:0 0 10px rgba(0,0,0,.5),0 0 32px #ff3b3b;}
+  .combo-big.burst{animation:comboBurst .5s cubic-bezier(.34,1.56,.64,1);
+    color:var(--gold);text-shadow:0 0 12px rgba(0,0,0,.5),0 0 30px var(--gold),0 0 60px var(--neon-pink);}
+  @keyframes comboBurst{
+    0%{transform:translate(-50%,-50%) scale(0.6);}
+    50%{transform:translate(-50%,-50%) scale(1.55);}
+    100%{transform:translate(-50%,-50%) scale(1);}
+  }
+
+  .weather-badge{position:absolute;left:50%;top:9%;transform:translate(-50%,-50%);
+    padding:8px 16px;font-weight:800;font-size:clamp(12px,2.4vw,15px);letter-spacing:1px;
+    color:#bfe0ff;opacity:0;transition:opacity .25s;white-space:nowrap;}
+  .weather-badge.show{opacity:1;}
+
+  .center-msg{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);text-align:center;
+    width:min(90%,520px);padding:28px 20px;}
+  .title{font-size:clamp(30px,7vw,58px);font-weight:900;letter-spacing:2px;
+    background:linear-gradient(180deg,#fff,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 40px rgba(255,210,63,.35);margin:0;}
+  .subtitle{margin-top:10px;font-size:clamp(13px,2.6vw,18px);opacity:.9;}
+  .hint{margin-top:16px;font-size:13px;opacity:.7;animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:.4;}50%{opacity:.9;}}
+
+  .phase-text{position:absolute;left:50%;top:20%;transform:translate(-50%,-50%);
+    font-size:clamp(22px,5vw,40px);font-weight:900;letter-spacing:3px;text-align:center;
+    text-shadow:0 0 20px rgba(0,0,0,.6);transition:opacity .15s;opacity:0;white-space:nowrap;}
+
+  .results-backdrop{position:absolute;inset:0;background:rgba(5,3,16,.6);opacity:0;
+    transition:opacity .25s;pointer-events:none;}
+  .results-backdrop.show{opacity:1;}
+  .results-panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    padding:clamp(28px,5vw,52px) clamp(28px,7vw,64px);text-align:center;display:none;
+    width:min(92vw,640px);background:rgba(8,6,22,.86);}
+  .result-outcome{font-size:clamp(26px,6.5vw,44px);font-weight:900;letter-spacing:3px;
+    animation:drop .5s cubic-bezier(.34,1.56,.64,1);}
+  .result-outcome.win{color:#5cff8a;text-shadow:0 0 22px #5cff8a;}
+  .result-outcome.lose{color:#ff5f6d;text-shadow:0 0 22px #ff5f6d;}
+  .medal{font-size:clamp(56px,14vw,104px);line-height:1;animation:drop .5s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes drop{from{transform:translateY(-60px) scale(.4);opacity:0;}to{transform:translateY(0) scale(1);opacity:1;}}
+  .result-time{font-size:clamp(36px,9vw,64px);font-weight:900;margin-top:8px;font-variant-numeric:tabular-nums;
+    text-shadow:0 0 20px var(--neon-cyan);}
+  .result-medal-name{font-size:clamp(18px,3vw,24px);font-weight:700;margin-top:4px;opacity:.9;}
+  .result-best{font-size:clamp(13px,2vw,15px);opacity:.8;margin-top:12px;}
+  .race-results{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.15);text-align:left;}
+  .rank-row{display:flex;align-items:center;gap:12px;padding:8px 6px;font-size:clamp(15px,2.4vw,19px);}
+  .rank-row.me{font-weight:800;color:var(--gold);}
+  .rank-ico{width:28px;text-align:center;font-size:1.2em;}
+  .rank-name{flex:1;}
+  .rank-time{font-variant-numeric:tabular-nums;opacity:.9;}
+  .results-countdown{margin-top:14px;font-size:12px;opacity:.6;}
+
+  .diff-row{display:flex;gap:10px;justify-content:center;margin-top:18px;pointer-events:auto;}
+  .diff-btn{pointer-events:auto;cursor:pointer;padding:12px 18px;border-radius:12px;
+    background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.18);color:#fff;
+    font-family:inherit;font-weight:800;font-size:14px;line-height:1.5;transition:.12s;}
+  .diff-btn:hover{background:rgba(255,255,255,.16);transform:translateY(-2px);}
+  .diff-btn.selected{border-color:var(--gold);background:rgba(255,210,63,.18);box-shadow:0 0 16px rgba(255,210,63,.35);}
+
+  .char-row{display:flex;gap:10px;justify-content:center;margin-top:16px;pointer-events:auto;flex-wrap:wrap;}
+  .char-btn{pointer-events:auto;cursor:pointer;padding:10px 14px;border-radius:12px;
+    background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.18);color:#fff;
+    font-family:inherit;font-weight:800;font-size:12px;line-height:1.5;transition:.12s;max-width:150px;}
+  .char-btn span{display:block;font-size:10px;opacity:.7;font-weight:600;letter-spacing:.3px;white-space:normal;}
+  .char-btn:hover{background:rgba(255,255,255,.16);transform:translateY(-2px);}
+  .char-btn.selected{border-color:#3ddc97;background:rgba(61,220,151,.18);box-shadow:0 0 16px rgba(61,220,151,.35);}
+
+  .medal-info{display:flex;justify-content:center;gap:10px;margin-top:16px;flex-wrap:wrap;}
+  .medal-info span{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+    padding:6px 12px;border-radius:8px;font-size:clamp(11px,2vw,13px);font-weight:700;opacity:.9;white-space:nowrap;}
+
+  .testhint{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);font-size:11px;opacity:.55;
+    white-space:nowrap;text-align:center;}
+
+  .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;}
+
+  .touchzone{position:absolute;bottom:0;width:50%;height:38%;pointer-events:auto;touch-action:none;}
+  .touchzone.left{left:0;}
+  .touchzone.right{right:0;}
+
+  @media (max-width:640px){
+    .best-badge{display:none;}
+    .hud-bottom{align-items:center;}
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui">
+  <div class="hud-top">
+    <div class="panel time-box" id="timeBox">00.00</div>
+    <div class="panel progress-wrap">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-label"><span id="distLabel">0</span> / 100 m</div>
+    </div>
+    <div class="panel ws-box"><span class="ws-dot" id="wsDot"></span><span id="wsLabel">Connecting...</span></div>
+  </div>
+
+  <div class="phase-text" id="phaseText"></div>
+  <div class="combo-big" id="comboBig"></div>
+  <div class="weather-badge panel" id="weatherBadge">🌧 RAIN — SLIPPERY TRACK</div>
+
+  <div class="center-msg panel" id="centerMsg">
+    <h1 class="title">SPRINT MASTER 3000</h1>
+    <div class="subtitle">Alternate LEFT / RIGHT to sprint to the 100m finish line</div>
+    <div class="medal-info" id="medalInfo"></div>
+    <div class="char-row" id="charRow">
+      <button class="char-btn selected" data-char="balanced">BALANCED<span>even all-rounder</span></button>
+      <button class="char-btn" data-char="power">POWER<span>big strides, slow recovery</span></button>
+      <button class="char-btn" data-char="agile">AGILE<span>quick steps, nimble</span></button>
+    </div>
+    <div class="diff-row" id="diffRow">
+      <button class="diff-btn" data-diff="easy">EASY</button>
+      <button class="diff-btn selected" data-diff="normal">NORMAL</button>
+      <button class="diff-btn" data-diff="hard">HARD</button>
+    </div>
+    <div class="hint">Pick a difficulty to start (or press any key / ESP32 button for NORMAL)</div>
+  </div>
+
+  <div class="results-backdrop" id="resultsBackdrop"></div>
+  <div class="results-panel panel" id="resultsPanel">
+    <div class="result-outcome" id="resultOutcome">WIN</div>
+    <div class="medal" id="medalEmoji">🥇</div>
+    <div class="result-time" id="resultTime">0.00s</div>
+    <div class="result-medal-name" id="medalName">GOLD</div>
+    <div class="result-best" id="resultBest"></div>
+    <div class="race-results" id="raceResults"></div>
+    <div class="results-countdown" id="resultsCountdown">Press ENTER to leave, or wait 10s</div>
+  </div>
+
+  <div class="hud-bottom">
+    <div class="panel key-indicator">
+      <div class="key-btn" id="keyL">L</div>
+      <div class="key-btn" id="keyR">R</div>
+    </div>
+    <div class="panel best-badge" id="bestBadge">BEST: --</div>
+  </div>
+
+  <div class="testhint">No ESP32? Use keyboard ← → or A / D, or tap the left/right half of the screen</div>
+  <div class="flash" id="flash"></div>
+  <div class="touchzone left" id="touchL"></div>
+  <div class="touchzone right" id="touchR"></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ================= CONFIG（可依手感自行調整） ================= */
+const CONFIG = {
+  TRACK_LENGTH: 100,
+  PIXELS_PER_METER: 14,
+  MAX_SPEED: 10.6,
+  IMPULSE: 0.85,
+  DRAG: 1.35,
+  STUMBLE_PENALTY: 0.45,
+  COMBO_MULT_CAP: 2.5,
+  COMBO_BURST_EVERY: 10,
+  COMBO_BURST_SPEED: 1.6,
+  MEDALS: [
+    { name: 'GOLD', emoji: '🥇', max: 10.5 },
+    { name: 'SILVER', emoji: '🥈', max: 13.0 },
+    { name: 'BRONZE', emoji: '🥉', max: 16.0 },
+  ],
+  ZOOM: 1.28,
+  // Runner's front leg can visually reach ~50 world-px ahead of the hip anchor at full
+  // stride; finish when the line is within that reach so "touching" the line really ends it.
+  FINISH_TOUCH_PX: 50,
+};
+
+// Average pace (m/s) of the two CPU opponents per difficulty; higher = faster
+const DIFFICULTIES = {
+  easy:   { label:'EASY',   paces:[4.5, 4.0] },
+  normal: { label:'NORMAL', paces:[6.5, 5.8] },
+  hard:   { label:'HARD',   paces:[7.4, 6.7] },
+};
+const AI_META = [
+  { name:'CPU-A', color:'#4fd1ff' },
+  { name:'CPU-B', color:'#ff6bcb' },
+];
+
+// Playable characters: trade-off between per-step power and agility/recovery
+const CHARACTERS = {
+  balanced: { name:'BALANCED', desc:'Even all-rounder', color:'#ff2e7e',
+    impulseMul:1.0,  maxSpeedMul:1.0,  stumbleMul:1.0, scale:1.0 },
+  power:    { name:'POWER',    desc:'Big strides, slow to recover', color:'#ff8c3d',
+    impulseMul:1.35, maxSpeedMul:0.9,  stumbleMul:1.3, scale:1.16 },
+  agile:    { name:'AGILE',    desc:'Small quick steps, nimble', color:'#3ddc97',
+    impulseMul:0.75, maxSpeedMul:1.15, stumbleMul:0.6, scale:0.86 },
+};
+
+/* ================= Canvas 初始化 ================= */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ================= 工具函式 ================= */
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const rand = (a,b) => a + Math.random() * (b - a);
+const lerp = (a,b,t) => a + (b - a) * t;
+function shadeColor(hex, percent){
+  const f = parseInt(hex.slice(1),16), t = percent<0?0:255, p = Math.abs(percent)/100;
+  const R=f>>16, G=(f>>8)&0xff, B=f&0xff;
+  const rr=Math.round((t-R)*p)+R, gg=Math.round((t-G)*p)+G, bb=Math.round((t-B)*p)+B;
+  return '#' + (0x1000000 + rr*0x10000 + gg*0x100 + bb).toString(16).slice(1);
+}
+
+/* ================= 音效引擎（Web Audio 即時合成，無需外部音檔） ================= */
+class AudioEngine{
+  constructor(){ this.ctx=null; this.noiseBuf=null; }
+  ensure(){
+    if(!this.ctx){
+      this.ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const rate=this.ctx.sampleRate, buf=this.ctx.createBuffer(1, rate*2, rate);
+      const d=buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+      this.noiseBuf=buf;
+    }
+    if(this.ctx.state==='suspended') this.ctx.resume();
+  }
+  _env(gain,t0,attack,hold,release,peak){
+    const g=gain.gain;
+    g.cancelScheduledValues(t0);
+    g.setValueAtTime(0.0001,t0);
+    g.exponentialRampToValueAtTime(peak,t0+attack);
+    g.exponentialRampToValueAtTime(0.0001,t0+attack+hold+release);
+  }
+  footstep(side){
+    this.ensure(); const t=this.ctx.currentTime;
+    const osc=this.ctx.createOscillator(), gain=this.ctx.createGain();
+    osc.type='triangle'; osc.frequency.value = side==='L'?220:180;
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    this._env(gain,t,0.005,0.02,0.05,0.18);
+    osc.start(t); osc.stop(t+0.1);
+  }
+  stumble(){
+    this.ensure(); const t=this.ctx.currentTime;
+    const osc=this.ctx.createOscillator(), gain=this.ctx.createGain();
+    osc.type='sawtooth';
+    osc.frequency.setValueAtTime(260,t);
+    osc.frequency.exponentialRampToValueAtTime(80,t+0.25);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    this._env(gain,t,0.01,0.05,0.2,0.25);
+    osc.start(t); osc.stop(t+0.3);
+  }
+  thunder(){
+    this.ensure(); const t=this.ctx.currentTime;
+    const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf;
+    const filt=this.ctx.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=380;
+    const gain=this.ctx.createGain();
+    src.connect(filt); filt.connect(gain); gain.connect(this.ctx.destination);
+    this._env(gain,t,0.02,0.3,0.9,0.45);
+    src.start(t); src.stop(t+1.3);
+  }
+  startRain(){
+    this.ensure();
+    if(this._rainPlaying) return;
+    this._rainPlaying = true;
+    const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf; src.loop=true;
+    const filt=this.ctx.createBiquadFilter(); filt.type='highpass'; filt.frequency.value=2200;
+    const gain=this.ctx.createGain(); gain.gain.value=0.0001;
+    src.connect(filt); filt.connect(gain); gain.connect(this.ctx.destination);
+    gain.gain.setTargetAtTime(0.16, this.ctx.currentTime, 0.6);
+    src.start();
+    this._rainSrc=src; this._rainGain=gain;
+  }
+  stopRain(){
+    if(!this._rainPlaying) return;
+    this._rainPlaying = false;
+    const g=this._rainGain, src=this._rainSrc;
+    if(g) g.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.4);
+    if(src) setTimeout(()=>{ try{ src.stop(); }catch(e){} }, 700);
+  }
+  gunshot(){
+    this.ensure(); const t=this.ctx.currentTime;
+    const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf;
+    const filt=this.ctx.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=2200;
+    const gain=this.ctx.createGain();
+    src.connect(filt); filt.connect(gain); gain.connect(this.ctx.destination);
+    this._env(gain,t,0.001,0.05,0.18,0.9);
+    src.start(t); src.stop(t+0.3);
+    const osc=this.ctx.createOscillator(), g2=this.ctx.createGain();
+    osc.type='sine'; osc.frequency.setValueAtTime(120,t); osc.frequency.exponentialRampToValueAtTime(40,t+0.2);
+    osc.connect(g2); g2.connect(this.ctx.destination);
+    this._env(g2,t,0.001,0.05,0.2,0.7);
+    osc.start(t); osc.stop(t+0.3);
+  }
+  beep(freq,dur,type,peak){
+    this.ensure(); const t=this.ctx.currentTime;
+    const osc=this.ctx.createOscillator(), gain=this.ctx.createGain();
+    osc.type=type||'square'; osc.frequency.value=freq||880;
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    this._env(gain,t,0.005,(dur||0.08)*0.4,(dur||0.08)*0.6,peak||0.15);
+    osc.start(t); osc.stop(t+(dur||0.08)+0.05);
+  }
+  cheer(){
+    this.ensure(); const t=this.ctx.currentTime;
+    const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf; src.loop=true;
+    const filt=this.ctx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=1500; filt.Q.value=0.6;
+    const gain=this.ctx.createGain();
+    src.connect(filt); filt.connect(gain); gain.connect(this.ctx.destination);
+    gain.gain.setValueAtTime(0.0001,t);
+    gain.gain.exponentialRampToValueAtTime(0.35,t+0.4);
+    gain.gain.exponentialRampToValueAtTime(0.0001,t+2.2);
+    src.start(t); src.stop(t+2.3);
+  }
+  fanfare(){
+    this.ensure();
+    [523.25,659.25,783.99,1046.5].forEach((f,i)=>{
+      setTimeout(()=>this.beep(f,0.18,'triangle',0.2), i*110);
+    });
+  }
+  startBGM(){
+    this.ensure();
+    if(this._bgmPlaying) return;
+    this._bgmPlaying = true;
+    this._bgmGain = this.ctx.createGain();
+    this._bgmGain.gain.value = 0.16;
+    this._bgmGain.connect(this.ctx.destination);
+    this._bgmStep = 0;
+    const bassLine = [130.81,130.81,164.81,146.83,130.81,130.81,196.00,174.61];
+    const stepDur = 0.22;
+    this._bgmNext = this.ctx.currentTime + 0.1;
+    const scheduleAhead = () => {
+      if(!this._bgmPlaying) return;
+      while(this._bgmNext < this.ctx.currentTime + 0.5){
+        const t = this._bgmNext;
+        const freq = bassLine[this._bgmStep % bassLine.length];
+        const osc=this.ctx.createOscillator(), g=this.ctx.createGain();
+        osc.type='triangle'; osc.frequency.value=freq;
+        osc.connect(g); g.connect(this._bgmGain);
+        g.gain.setValueAtTime(0.0001,t);
+        g.gain.exponentialRampToValueAtTime(0.9,t+0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001,t+stepDur*0.85);
+        osc.start(t); osc.stop(t+stepDur);
+        if(this._bgmStep % 2 === 1){
+          const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf;
+          const filt=this.ctx.createBiquadFilter(); filt.type='highpass'; filt.frequency.value=6000;
+          const hg=this.ctx.createGain();
+          src.connect(filt); filt.connect(hg); hg.connect(this._bgmGain);
+          hg.gain.setValueAtTime(0.0001,t);
+          hg.gain.exponentialRampToValueAtTime(0.22,t+0.005);
+          hg.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+          src.start(t); src.stop(t+0.06);
+        }
+        this._bgmStep++;
+        this._bgmNext += stepDur;
+      }
+      this._bgmTimer = setTimeout(scheduleAhead, 150);
+    };
+    scheduleAhead();
+  }
+  stopBGM(){
+    this._bgmPlaying = false;
+    clearTimeout(this._bgmTimer);
+  }
+}
+const audio = new AudioEngine();
+
+// Spoken countdown ("Three"/"Two"/"One") via the browser's built-in text-to-speech
+function speak(text){
+  try{
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    u.rate = 1.1;
+    u.pitch = 1.0;
+    u.volume = 1.0;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+/* ================= 粒子系統 ================= */
+class Particles{
+  constructor(){ this.list=[]; }
+  spawnDust(x,y,n,dir){
+    for(let i=0;i<(n||6);i++){
+      this.list.push({x,y,vx:rand(-20,20)+(dir||0)*rand(10,40),vy:rand(-60,-10),g:220,
+        life:rand(.3,.6),age:0,size:rand(2,4),base:[210,190,160],type:'dust'});
+    }
+  }
+  spawnConfetti(x,y,n){
+    const colors=['#ff5f7e','#ffd23f','#4fd1ff','#7cff6b','#c86bff'];
+    for(let i=0;i<(n||40);i++){
+      this.list.push({x,y,vx:rand(-140,140),vy:rand(-320,-120),g:420,
+        life:rand(1.2,2.2),age:0,size:rand(3,6),color:colors[i%colors.length],
+        rot:rand(0,6.28),vr:rand(-6,6),type:'confetti'});
+    }
+  }
+  update(dt){
+    for(const p of this.list){
+      p.age+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=p.g*dt; p.vx*=0.98;
+    }
+    this.list = this.list.filter(p=>p.age<p.life);
+  }
+  draw(ctx){
+    for(const p of this.list){
+      const t = clamp(1-p.age/p.life,0,1);
+      ctx.globalAlpha = t;
+      if(p.type==='confetti'){
+        ctx.save();
+        ctx.translate(p.x,p.y);
+        ctx.rotate(p.rot+p.age*p.vr);
+        ctx.fillStyle=p.color;
+        ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*1.6);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = 'rgba('+p.base[0]+','+p.base[1]+','+p.base[2]+','+t.toFixed(2)+')';
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,6.283); ctx.fill();
+      }
+    }
+    ctx.globalAlpha=1;
+  }
+}
+const particles = new Particles();
+
+/* ================= 跑者程序化繪製 ================= */
+const THIGH=26, SHIN=24, TORSO=34, HEAD_R=13, A_UP=20, A_LO=18;
+
+function drawRunner(o){
+  const { x, groundY, phase, speedRatio, jersey, skin, scale, alpha, bib } = o;
+  const s = scale || 1;
+  const lean = 0.10 + speedRatio*0.34;
+  const bounce = Math.abs(Math.sin(phase*2)) * (4+speedRatio*5) * s;
+  const legLen = (THIGH+SHIN) * s * 0.94;
+  const cx = x, cy = groundY - legLen - bounce;
+
+  ctx.save();
+  ctx.globalAlpha = alpha==null?1:alpha;
+
+  // 地面陰影
+  const shrink = 1 - Math.abs(Math.sin(phase*2))*0.25;
+  const shadowW = (34+speedRatio*6) * s * shrink;
+  const grd = ctx.createRadialGradient(cx, groundY+4, 2, cx, groundY+4, shadowW);
+  grd.addColorStop(0,'rgba(0,0,0,0.45)');
+  grd.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=grd;
+  ctx.beginPath(); ctx.ellipse(cx, groundY+4, shadowW, shadowW*0.28, 0, 0, 6.283); ctx.fill();
+
+  ctx.translate(cx, cy);
+  ctx.scale(s, s);
+
+  function legPts(i){
+    const t = phase + i*Math.PI;
+    const thighA = Math.sin(t)*(0.5+speedRatio*0.55);
+    const kx = Math.sin(thighA)*THIGH, ky=Math.cos(thighA)*THIGH;
+    const bend = Math.max(0,Math.sin(t+0.4))*(0.8+speedRatio*0.8);
+    const shinA = thighA+bend;
+    const fx = kx+Math.sin(shinA)*SHIN, fy=ky+Math.cos(shinA)*SHIN;
+    return {kx,ky,fx,fy};
+  }
+  function drawLeg(pt){
+    ctx.strokeStyle = shadeColor(skin,-8);
+    ctx.lineWidth=7; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(pt.kx,pt.ky); ctx.lineTo(pt.fx,pt.fy); ctx.stroke();
+    ctx.fillStyle='#161a22';
+    ctx.beginPath(); ctx.ellipse(pt.fx+3,pt.fy,7,4,0.3,0,6.283); ctx.fill();
+  }
+  function drawArm(t){
+    const shY=-TORSO;
+    const swingA = Math.sin(t)*(0.6+speedRatio*0.5);
+    const ex = Math.sin(swingA)*A_UP, ey = shY+Math.cos(swingA)*A_UP;
+    const bend = 0.6+Math.max(0,Math.sin(t))*0.5;
+    const handA = swingA+bend;
+    const hx = ex+Math.sin(handA)*A_LO, hy=ey+Math.cos(handA)*A_LO;
+    ctx.strokeStyle = shadeColor(skin,-4);
+    ctx.lineWidth=5; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(0,shY); ctx.lineTo(ex,ey); ctx.lineTo(hx,hy); ctx.stroke();
+  }
+
+  const legB = legPts(1), legF = legPts(0);
+  drawLeg(legB);
+
+  // 短褲
+  ctx.fillStyle = shadeColor(jersey,-15);
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(-10,-8,20,16,5) : ctx.rect(-10,-8,20,16);
+  ctx.fill();
+
+  ctx.save();
+  ctx.rotate(-lean);
+  drawArm(phase); // 後手（與前腳同相位錯開）
+  // 軀幹
+  const g2 = ctx.createLinearGradient(-12,0,12,-TORSO);
+  g2.addColorStop(0, shadeColor(jersey,-18));
+  g2.addColorStop(0.5, jersey);
+  g2.addColorStop(1, shadeColor(jersey,25));
+  ctx.fillStyle=g2;
+  ctx.beginPath();
+  ctx.moveTo(-9,0);
+  ctx.quadraticCurveTo(-13,-TORSO*0.5,-11,-TORSO);
+  ctx.lineTo(11,-TORSO);
+  ctx.quadraticCurveTo(13,-TORSO*0.5,9,0);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.55)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(-11,-TORSO); ctx.quadraticCurveTo(-13,-TORSO*0.5,-9,0); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.font='bold 11px system-ui'; ctx.textAlign='center';
+  ctx.fillText(bib||'1', 0, -TORSO*0.45);
+  // 頭
+  const hy=-TORSO-HEAD_R*0.9;
+  const g3=ctx.createRadialGradient(-4,hy-4,2,0,hy,HEAD_R);
+  g3.addColorStop(0, shadeColor(skin,25)); g3.addColorStop(1, shadeColor(skin,-10));
+  ctx.fillStyle=g3; ctx.beginPath(); ctx.arc(0,hy,HEAD_R,0,6.283); ctx.fill();
+  ctx.strokeStyle=jersey; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.arc(0,hy,HEAD_R*0.95,-2.6,-0.5); ctx.stroke();
+  ctx.fillStyle='rgba(20,20,30,.85)';
+  ctx.beginPath(); ctx.arc(HEAD_R*0.4,hy-1,1.6,0,6.283); ctx.fill();
+  const flick = Math.sin(phase*2)*4;
+  ctx.strokeStyle=shadeColor(skin,-30); ctx.lineWidth=4; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-HEAD_R*0.7,hy-3);
+  ctx.quadraticCurveTo(-HEAD_R*1.6+flick,hy+2,-HEAD_R*1.3+flick,hy+10); ctx.stroke();
+
+  drawArm(phase+Math.PI); // 前手
+  ctx.restore();
+
+  drawLeg(legF);
+  ctx.restore();
+  ctx.restore();
+}
+
+/* ================= 背景 / 賽道 ================= */
+function drawSky(){
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#160f30'); g.addColorStop(0.45,'#5b2a6e');
+  g.addColorStop(0.72,'#ff5f3d'); g.addColorStop(1,'#ffd36e');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  // stars scattered high in the sky
+  for(let i=0;i<24;i++){
+    const sx=(i*137)%W, sy=(i*71)%(H*0.35);
+    ctx.globalAlpha = 0.25+((i*53)%50)/100;
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(sx,sy,1.4,0,6.283); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // moon, hung high near the top of the sky
+  const moonX=W*0.5, moonY=H*0.16;
+  const mg=ctx.createRadialGradient(moonX,moonY,10,moonX,moonY,200);
+  mg.addColorStop(0,'rgba(220,230,255,0.55)'); mg.addColorStop(1,'rgba(220,230,255,0)');
+  ctx.fillStyle=mg; ctx.fillRect(0,0,W,H);
+  ctx.beginPath(); ctx.fillStyle='#eef1fb'; ctx.arc(moonX,moonY,38,0,6.283); ctx.fill();
+  ctx.fillStyle='rgba(180,190,215,0.35)';
+  ctx.beginPath(); ctx.arc(moonX-12,moonY-8,6,0,6.283); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX+10,moonY+10,4,0,6.283); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX+4,moonY-14,3,0,6.283); ctx.fill();
+}
+function drawCloud(x,y,w){
+  ctx.fillStyle='rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x,y,w,w*0.35,0,0,6.283);
+  ctx.ellipse(x+w*0.5,y+4,w*0.6,w*0.3,0,0,6.283);
+  ctx.ellipse(x-w*0.5,y+6,w*0.5,w*0.28,0,0,6.283);
+  ctx.fill();
+}
+function drawClouds(worldPx){
+  const off = worldPx*0.03;
+  for(let i=0;i<5;i++){
+    const x = ((i*260 - off) % (W+300) + (W+300)) % (W+300) - 150;
+    const y = H*0.12 + (i%3)*28;
+    drawCloud(x,y,60+(i%2)*20);
+  }
+}
+function drawStadium(worldPx, groundY){
+  const bandTop=groundY-140, bandH=140;
+  ctx.fillStyle='#241238'; ctx.fillRect(0,bandTop,W,bandH);
+  const off=(worldPx*0.25)%18;
+  for(let x=-off; x<W+18; x+=18){
+    for(let row=0; row<5; row++){
+      const y = bandTop+14+row*18;
+      const flick = Math.random()<0.015;
+      ctx.fillStyle = flick? '#ffe27a' : (row%2? 'rgba(255,255,255,0.18)':'rgba(255,255,255,0.10)');
+      ctx.beginPath(); ctx.arc(x,y,3.4,0,6.283); ctx.fill();
+    }
+  }
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.fillRect(0,bandTop+bandH-6,W,6);
+}
+function drawTrack(worldPx, groundY, distance){
+  const g=ctx.createLinearGradient(0,groundY,0,H);
+  g.addColorStop(0,'#b23a52'); g.addColorStop(1,'#7a2438');
+  ctx.fillStyle=g; ctx.fillRect(0,groundY,W,H-groundY);
+
+  ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=3;
+  ctx.setLineDash([26,22]); ctx.lineDashOffset = -worldPx % 48;
+  [0.32,0.6].forEach(f=>{
+    ctx.beginPath(); ctx.moveTo(0,groundY+(H-groundY)*f); ctx.lineTo(W,groundY+(H-groundY)*f); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+
+  const runnerScreenX = W*0.28;
+  for(let m=10; m<=CONFIG.TRACK_LENGTH; m+=10){
+    const sx = (m-distance)*CONFIG.PIXELS_PER_METER + runnerScreenX;
+    if(sx<-40||sx>W+40) continue;
+    ctx.strokeStyle='rgba(255,255,255,0.45)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(sx,groundY); ctx.lineTo(sx,H); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.font='bold 12px system-ui'; ctx.textAlign='center';
+    ctx.fillText(m+'m', sx, groundY-8);
+  }
+  const fx = (CONFIG.TRACK_LENGTH-distance)*CONFIG.PIXELS_PER_METER + runnerScreenX;
+  if(fx>-80 && fx<W+80) drawFinishLine(fx, groundY);
+}
+function drawFinishLine(x, groundY){
+  const w=18, rows=8, cell=(H-groundY)/rows;
+  for(let r=0;r<rows;r++){
+    ctx.fillStyle = r%2===0? '#111':'#fff';
+    ctx.fillRect(x-w/2, groundY+r*cell, w, cell);
+  }
+  ctx.fillStyle='#eee';
+  ctx.fillRect(x-w/2-4, groundY-160, 6, 160);
+  ctx.fillRect(x+w/2-2, groundY-160, 6, 160);
+  ctx.fillStyle='#ffd23f';
+  ctx.fillRect(x-44, groundY-166, 88, 22);
+  ctx.fillStyle='#160f30'; ctx.font='bold 13px system-ui'; ctx.textAlign='center';
+  ctx.fillText('FINISH', x, groundY-150);
+}
+
+/* ================= 隨機天氣：下雨 (Normal/Hard 限定，會拖慢跑步速度) ================= */
+function spawnRaindrop(){
+  raindrops.push({
+    x: rand(-60,W+60),
+    y: rand(-60,-10),
+    len: rand(16,30),
+    vx: -rand(90,170),
+    vy: rand(950,1350),
+    alpha: rand(0.25,0.55),
+  });
+}
+function updateRain(dt){
+  for(let i=0;i<3;i++) spawnRaindrop();
+  raindrops.forEach(r=>{ r.x+=r.vx*dt; r.y+=r.vy*dt; });
+  raindrops = raindrops.filter(r=>r.y<H+40);
+  if(Math.random()<0.006){ flashScreen(0.35); audio.thunder(); }
+}
+function drawRainTint(){
+  ctx.fillStyle='rgba(18,26,44,0.32)';
+  ctx.fillRect(0,0,W,H);
+}
+function drawRaindrop(r){
+  ctx.strokeStyle='rgba(190,215,255,'+r.alpha.toFixed(2)+')';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(r.x, r.y);
+  ctx.lineTo(r.x+r.vx*0.02, r.y+r.len);
+  ctx.stroke();
+}
+
+/* ================= 遊戲狀態 ================= */
+const STATE = { MENU:'MENU', READY:'READY', GO:'GO', RUNNING:'RUNNING', FINISHED:'FINISHED', FALSE_START:'FALSE_START' };
+let state = STATE.MENU;
+let distance=0, speed=0, phase=0, lastSide=null, combo=0;
+let elapsed=0, raceStartPerf=0, finishTime=0;
+let readyTimer=0, countdownValue=3, goFlashTimer=0, falseStartTimer=0;
+let flashAlpha=0;
+let shakeMag=0, shakeTime=0, shakeDur=0.001;
+let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
+let selectedDifficulty = 'normal';
+let selectedCharacter = 'balanced';
+let aiState = AI_META.map((m,i)=>({ ...m, pace:DIFFICULTIES.normal.paces[i], dist:0, finishTime:0 }));
+let weather = 'clear';
+let weatherTimer = Infinity;
+let raindrops = [];
+
+const centerMsg=document.getElementById('centerMsg');
+const phaseTextEl=document.getElementById('phaseText');
+const comboBigEl=document.getElementById('comboBig');
+const weatherBadgeEl=document.getElementById('weatherBadge');
+const resultsPanel=document.getElementById('resultsPanel');
+const timeBox=document.getElementById('timeBox');
+const progressFill=document.getElementById('progressFill');
+const distLabel=document.getElementById('distLabel');
+const bestBadge=document.getElementById('bestBadge');
+const keyL=document.getElementById('keyL');
+const keyR=document.getElementById('keyR');
+const wsDot=document.getElementById('wsDot');
+const wsLabel=document.getElementById('wsLabel');
+const flashEl=document.getElementById('flash');
+const resultsBackdropEl=document.getElementById('resultsBackdrop');
+const resultsCountdownEl=document.getElementById('resultsCountdown');
+let resultsTimer=null;
+
+function selectDifficulty(key){
+  audio.ensure();
+  audio.startBGM();
+  selectedDifficulty = key;
+  document.querySelectorAll('.diff-btn').forEach(b=>b.classList.toggle('selected', b.dataset.diff===key));
+  aiState.forEach((a,i)=>{ a.pace = DIFFICULTIES[key].paces[i]; });
+  enterReady();
+}
+document.querySelectorAll('.diff-btn').forEach(b=>{
+  b.addEventListener('click', ()=> selectDifficulty(b.dataset.diff));
+});
+
+function selectCharacter(key){
+  audio.ensure();
+  audio.startBGM();
+  selectedCharacter = key;
+  document.querySelectorAll('.char-btn').forEach(b=>b.classList.toggle('selected', b.dataset.char===key));
+}
+document.querySelectorAll('.char-btn').forEach(b=>{
+  b.addEventListener('click', ()=> selectCharacter(b.dataset.char));
+});
+
+function setPhaseText(msg){
+  phaseTextEl.textContent = msg||'';
+  phaseTextEl.style.opacity = msg? '1':'0';
+}
+function addShake(mag,dur){ shakeMag=Math.max(shakeMag,mag); shakeTime=dur; shakeDur=dur; }
+function flashKey(side, bad){
+  const el = side==='L'? keyL: keyR;
+  el.classList.remove('active','bad');
+  void el.offsetWidth;
+  el.classList.add(bad?'bad':'active');
+  setTimeout(()=>el.classList.remove('active','bad'), 130);
+}
+function flashScreen(a){ flashAlpha = Math.max(flashAlpha, a); }
+
+function enterReady(){
+  clearTimeout(resultsTimer);
+  state=STATE.READY;
+  distance=0; speed=0; phase=0; lastSide=null; combo=0; elapsed=0;
+  aiState.forEach(a=>{ a.dist=0; a.runPhase=0; a.finishTime = CONFIG.TRACK_LENGTH/a.pace; });
+  readyTimer=0;
+  countdownValue=3;
+  weather='clear';
+  weatherTimer = selectedDifficulty==='easy'? Infinity : rand(4,8);
+  raindrops=[];
+  audio.stopRain();
+  centerMsg.style.display='none';
+  resultsPanel.style.display='none';
+  resultsBackdropEl.classList.remove('show');
+  comboBigEl.classList.remove('show','hot','break','burst');
+  setPhaseText('3');
+  speak('Three');
+}
+function leaveResults(){
+  clearTimeout(resultsTimer);
+  state=STATE.MENU;
+  resultsPanel.style.display='none';
+  resultsBackdropEl.classList.remove('show');
+  centerMsg.style.display='block';
+}
+function updateComboBig(){
+  if(state!==STATE.RUNNING || combo<=0){ comboBigEl.classList.remove('show'); return; }
+  comboBigEl.textContent = 'COMBO ×'+combo;
+  comboBigEl.classList.toggle('hot', combo>=4);
+  comboBigEl.classList.add('show');
+}
+function popComboBig(bad){
+  comboBigEl.classList.remove('pop');
+  void comboBigEl.offsetWidth;
+  comboBigEl.classList.add('pop');
+  if(bad){
+    comboBigEl.textContent='COMBO BREAK!';
+    comboBigEl.classList.remove('hot'); comboBigEl.classList.add('break','show');
+    clearTimeout(popComboBig._t);
+    popComboBig._t=setTimeout(()=>{ comboBigEl.classList.remove('break'); if(combo<=0) comboBigEl.classList.remove('show'); }, 500);
+  }
+}
+function triggerComboBurst(){
+  const runnerScreenX=W*0.28, groundY=H*0.72;
+  speed=Math.min(CONFIG.MAX_SPEED*CHARACTERS[selectedCharacter].maxSpeedMul, speed+CONFIG.COMBO_BURST_SPEED);
+  audio.beep(1046.5,0.22,'triangle',0.28);
+  addShake(10,0.25);
+  flashScreen(0.25);
+  particles.spawnConfetti(runnerScreenX, groundY-60, 22);
+  comboBigEl.classList.remove('burst');
+  void comboBigEl.offsetWidth;
+  comboBigEl.classList.add('burst');
+}
+function triggerFalseStart(){
+  state=STATE.FALSE_START; falseStartTimer=0;
+  audio.beep(180,0.3,'sawtooth',0.25);
+  addShake(10,0.3);
+  setPhaseText('FALSE START!');
+}
+function triggerGo(){
+  state=STATE.GO; goFlashTimer=0;
+  audio.gunshot();
+  addShake(14,0.35);
+  flashScreen(0.85);
+  setPhaseText('GO!');
+}
+function finishRace(){
+  state=STATE.FINISHED;
+  finishTime=elapsed;
+  audio.stopRain();
+  audio.fanfare(); audio.cheer();
+  const runnerScreenX=W*0.28, groundY=H*0.72;
+  for(let i=0;i<3;i++) setTimeout(()=>particles.spawnConfetti(runnerScreenX, groundY-90, 50), i*180);
+  addShake(8,0.4);
+  let isBest=false;
+  if(!bestTime || finishTime<bestTime){ bestTime=finishTime; localStorage.setItem('sprint_best', String(bestTime)); isBest=true; }
+  showResults(isBest);
+}
+function pickMedal(t){
+  for(const m of CONFIG.MEDALS) if(t<=m.max) return m;
+  return { name:'TRY AGAIN', emoji:'🏅' };
+}
+function renderMedalInfo(){
+  document.getElementById('medalInfo').innerHTML = CONFIG.MEDALS.map(m=>
+    '<span>'+m.emoji+' '+m.name+' ≤ '+m.max.toFixed(1)+'s</span>'
+  ).join('');
+}
+renderMedalInfo();
+function showResults(isBest){
+  const medal=pickMedal(finishTime);
+  document.getElementById('medalEmoji').textContent=medal.emoji;
+  document.getElementById('resultTime').textContent=finishTime.toFixed(2)+'s';
+  document.getElementById('medalName').textContent=medal.name;
+  document.getElementById('resultBest').textContent = isBest? '🎉 NEW RECORD!' : ('BEST: '+bestTime.toFixed(2)+'s');
+
+  const list = [
+    { name:'YOU', time:finishTime, isPlayer:true },
+    ...aiState.map(a=>({ name:a.name, time:a.finishTime, isPlayer:false })),
+  ].sort((a,b)=>a.time-b.time);
+  const rankIcons=['🥇','🥈','🥉'];
+  document.getElementById('raceResults').innerHTML = list.map((r,i)=>
+    '<div class="rank-row'+(r.isPlayer?' me':'')+'">'
+    +'<span class="rank-ico">'+(rankIcons[i]||('#'+(i+1)))+'</span>'
+    +'<span class="rank-name">'+r.name+'</span>'
+    +'<span class="rank-time">'+r.time.toFixed(2)+'s</span>'
+    +'</div>'
+  ).join('');
+
+  const won = list[0].isPlayer;
+  const outcomeEl = document.getElementById('resultOutcome');
+  outcomeEl.textContent = won? 'YOU WIN!' : 'YOU LOSE';
+  outcomeEl.classList.toggle('win', won);
+  outcomeEl.classList.toggle('lose', !won);
+
+  resultsBackdropEl.classList.add('show');
+  resultsPanel.style.display='block';
+  setPhaseText('');
+
+  clearTimeout(resultsTimer);
+  resultsTimer=setTimeout(leaveResults, 10000);
+}
+
+function handleInput(side){
+  audio.ensure();
+  audio.startBGM();
+  if(state===STATE.MENU){ enterReady(); return; }
+  if(state===STATE.READY){ triggerFalseStart(); return; }
+  if(state===STATE.RUNNING){
+    const runnerScreenX=W*0.28, groundY=H*0.72;
+    const cs = CHARACTERS[selectedCharacter];
+    if(side!==lastSide){
+      combo++;
+      const mult=Math.min(CONFIG.COMBO_MULT_CAP, 1+(combo-1)*0.06);
+      const rainMul = weather==='rain'? 0.6 : 1;
+      speed=Math.min(CONFIG.MAX_SPEED*cs.maxSpeedMul, speed+CONFIG.IMPULSE*mult*rainMul*cs.impulseMul);
+      lastSide=side;
+      flashKey(side,false);
+      audio.footstep(side);
+      particles.spawnDust(runnerScreenX, groundY, 5, side==='L'?-1:1);
+      popComboBig(false);
+      if(combo>0 && combo%CONFIG.COMBO_BURST_EVERY===0) triggerComboBurst();
+    } else {
+      combo=0;
+      const effectivePenalty = 1-(1-CONFIG.STUMBLE_PENALTY)*cs.stumbleMul;
+      speed*=effectivePenalty;
+      audio.stumble();
+      addShake(6,0.2);
+      flashKey(side,true);
+      popComboBig(true);
+    }
+    return;
+  }
+  if(state===STATE.FINISHED){ return; }
+}
+
+/* ================= 輸入：鍵盤 / 觸控 / ESP32 WebSocket ================= */
+window.addEventListener('keydown',(e)=>{
+  if(e.repeat) return;
+  if(e.code==='Enter'||e.code==='NumpadEnter'){
+    if(state===STATE.FINISHED) leaveResults();
+    return;
+  }
+  if(e.code==='ArrowLeft'||e.code==='KeyA') handleInput('L');
+  else if(e.code==='ArrowRight'||e.code==='KeyD') handleInput('R');
+});
+document.getElementById('touchL').addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('L');});
+document.getElementById('touchR').addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('R');});
+
+let ws=null;
+function updateWsUi(connected){
+  wsDot.classList.toggle('connected', !!connected);
+  wsLabel.textContent = connected? 'ESP32 CONNECTED' : 'OFFLINE (keyboard/touch test)';
+}
+function connectWS(){
+  let url;
+  try{ url = 'ws://'+location.hostname+'/ws'; }catch(e){ url=null; }
+  if(!url || !location.hostname){ updateWsUi(false); return; }
+  try{
+    ws = new WebSocket(url);
+    ws.onopen=()=>updateWsUi(true);
+    ws.onclose=()=>{ updateWsUi(false); setTimeout(connectWS,2000); };
+    ws.onerror=()=>{ try{ws.close();}catch(e){} };
+    ws.onmessage=(ev)=>{
+      const d=(ev.data||'').trim();
+      if(d==='L'||d==='R') handleInput(d);
+    };
+  }catch(e){ updateWsUi(false); setTimeout(connectWS,2500); }
+}
+updateWsUi(false);
+connectWS();
+
+/* ================= HUD 更新 ================= */
+function updateHUD(){
+  const t = state===STATE.RUNNING? elapsed : (state===STATE.FINISHED? finishTime : 0);
+  timeBox.textContent = t.toFixed(2);
+  const pct = clamp(distance/CONFIG.TRACK_LENGTH*100,0,100);
+  progressFill.style.width = pct+'%';
+  distLabel.textContent = Math.floor(distance);
+  bestBadge.textContent = 'BEST: '+(bestTime? bestTime.toFixed(2)+'s':'--');
+  centerMsg.style.display = state===STATE.MENU? 'block':'none';
+  updateComboBig();
+  weatherBadgeEl.classList.toggle('show', state===STATE.RUNNING && weather==='rain');
+}
+
+/* ================= 主更新 / 渲染迴圈 ================= */
+let lastT=performance.now();
+function update(dt){
+  if(state===STATE.READY){
+    readyTimer+=dt;
+    if(readyTimer>1.0){
+      readyTimer=0;
+      countdownValue--;
+      if(countdownValue>0){
+        setPhaseText(String(countdownValue));
+        speak(countdownValue===2? 'Two':'One');
+      } else triggerGo();
+    }
+  } else if(state===STATE.GO){
+    goFlashTimer+=dt;
+    if(goFlashTimer>0.15){ state=STATE.RUNNING; raceStartPerf=performance.now(); setPhaseText(''); }
+  } else if(state===STATE.RUNNING){
+    elapsed=(performance.now()-raceStartPerf)/1000;
+    const rainDrag = weather==='rain'? 1.6 : 1;
+    speed=Math.max(0, speed - CONFIG.DRAG*rainDrag*speed*dt - 0.4*dt);
+    distance=Math.min(CONFIG.TRACK_LENGTH, distance+speed*dt);
+    phase += (0.6+speed*0.9)*dt*6;
+    aiState.forEach(a=>{
+      if(a.dist<CONFIG.TRACK_LENGTH){
+        a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + a.pace*dt);
+        a.runPhase = (a.runPhase||0) + (0.6+a.pace*0.9)*dt*6;
+      }
+    });
+
+    weatherTimer -= dt;
+    if(weatherTimer<=0){
+      if(weather==='clear'){
+        weather='rain';
+        weatherTimer=rand(4,7);
+        audio.startRain();
+      } else {
+        weather='clear';
+        weatherTimer = rand(5,9);
+        audio.stopRain();
+      }
+    }
+    if(weather==='rain') updateRain(dt);
+    if((CONFIG.TRACK_LENGTH-distance)*CONFIG.PIXELS_PER_METER <= CONFIG.FINISH_TOUCH_PX){
+      distance = CONFIG.TRACK_LENGTH;
+      finishRace();
+    }
+  } else if(state===STATE.FALSE_START){
+    falseStartTimer+=dt;
+    if(falseStartTimer>1.2) enterReady();
+  }
+  particles.update(dt);
+  if(shakeTime>0){ shakeTime-=dt; if(shakeTime<0) shakeTime=0; }
+  if(flashAlpha>0) flashAlpha=Math.max(0, flashAlpha-dt*2.6);
+  flashEl.style.opacity = flashAlpha.toFixed(2);
+  updateHUD();
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  ctx.save();
+  if(shakeTime>0){
+    const k = shakeTime/shakeDur;
+    ctx.translate(rand(-1,1)*shakeMag*k, rand(-1,1)*shakeMag*k);
+  } else { shakeMag=0; }
+
+  ctx.save();
+  const zx=W/2, zy=H*0.62;
+  ctx.translate(zx,zy); ctx.scale(CONFIG.ZOOM,CONFIG.ZOOM); ctx.translate(-zx,-zy);
+
+  const groundY = H*0.72;
+  const worldPx = distance*CONFIG.PIXELS_PER_METER;
+  const runnerScreenX = W*0.28;
+
+  drawSky();
+  drawClouds(worldPx);
+  drawStadium(worldPx, groundY);
+  drawTrack(worldPx, groundY, distance);
+  if(weather==='rain') drawRainTint();
+
+  const cs = CHARACTERS[selectedCharacter];
+  const speedRatio = clamp(speed/(CONFIG.MAX_SPEED*cs.maxSpeedMul),0,1);
+
+  aiState.forEach((a,i)=>{
+    const sx = (a.dist-distance)*CONFIG.PIXELS_PER_METER + runnerScreenX;
+    if(sx>-60 && sx<W+60){
+      const aiSpeedRatio = clamp(a.pace/CONFIG.MAX_SPEED,0,1);
+      drawRunner({ x:sx, groundY:groundY-30*(i+1), phase:a.runPhase||0, speedRatio:aiSpeedRatio,
+        jersey:a.color, skin:'#e8b48a', scale:0.82, alpha:0.85, bib:String(i+2) });
+    }
+  });
+
+  if(state===STATE.READY||state===STATE.GO){
+    drawRunner({ x:runnerScreenX, groundY, phase:0, speedRatio:0, jersey:cs.color, skin:'#f2c39a', scale:cs.scale, alpha:1, bib:'1' });
+  } else if(state===STATE.RUNNING||state===STATE.FINISHED){
+    drawRunner({ x:runnerScreenX, groundY, phase, speedRatio, jersey:cs.color, skin:'#f2c39a', scale:cs.scale, alpha:1, bib:'1' });
+  }
+
+  particles.draw(ctx);
+  if(weather==='rain') raindrops.forEach(drawRaindrop);
+
+  ctx.restore();
+
+  const vg = ctx.createRadialGradient(W/2,H/2,H*0.3,W/2,H/2,H*0.85);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.35)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+
+  ctx.restore();
+}
+
+function frame(now){
+  const dt = Math.min(0.05, (now-lastT)/1000);
+  lastT = now;
+  update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
