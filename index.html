@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>SPRINT MASTER 3000 - ESP32 100m Dash</title>
+<title>SPRINT MASTER 3000 - ESP32 150m Dash</title>
 <style>
   :root{
     --sky-top:#160f30;
@@ -151,7 +151,7 @@
     <div class="panel time-box" id="timeBox">00.00</div>
     <div class="panel progress-wrap">
       <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
-      <div class="progress-label"><span id="distLabel">0</span> / 100 m</div>
+      <div class="progress-label"><span id="distLabel">0</span> / 150 m</div>
     </div>
     <div class="panel ws-box"><span class="ws-dot" id="wsDot"></span><span id="wsLabel">Connecting...</span></div>
     <div class="panel level-badge" id="levelBadge"></div>
@@ -163,13 +163,13 @@
 
   <div class="center-msg panel" id="centerMsg">
     <h1 class="title">SPRINT MASTER 3000</h1>
-    <div class="subtitle">Alternate LEFT / RIGHT to sprint to the 100m finish line</div>
+    <div class="subtitle">Alternate LEFT / RIGHT to sprint to the 150m finish line</div>
     <div class="medal-info" id="medalInfo"></div>
     <div class="char-row" id="charRow">
-      <button class="char-btn" data-char="turtle">🐢 TURTLE<span>slow on land, fast &amp; slides in rain</span></button>
-      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — leaps at combo 40</span></button>
-      <button class="char-btn selected" data-char="dog">🐶 DOG<span>balanced — barks to slow rivals at combo 40</span></button>
-      <button class="char-btn" data-char="cat">🐱 CAT<span>slow start, fast &amp; uncapped combo</span></button>
+      <button class="char-btn" data-char="turtle">🐢 TURTLE<span>slow on land, fast &amp; slides 5m in rain</span></button>
+      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — leaps at combo 30</span></button>
+      <button class="char-btn selected" data-char="dog">🐶 DOG<span>balanced — barks to slow rivals at combo 30</span></button>
+      <button class="char-btn" data-char="cat">🐱 CAT<span>slow start, uncapped combo, top speed = CPU × 1.4</span></button>
       <button class="char-btn" data-char="stickman">🔥 STICKMAN<span>???</span></button>
       <button class="char-btn" data-char="random">🎲 RANDOM<span>picks one for you</span></button>
     </div>
@@ -210,9 +210,9 @@
 (() => {
 'use strict';
 
-/* ================= CONFIG（可依手感自行調整） ================= */
+/* ================= CONFIG ================= */
 const CONFIG = {
-  TRACK_LENGTH: 100,
+  TRACK_LENGTH: 150,
   PIXELS_PER_METER: 14,
   MAX_SPEED: 10.6,
   IMPULSE: 0.85,
@@ -221,13 +221,19 @@ const CONFIG = {
   COMBO_MULT_CAP: 2.5,
   COMBO_BURST_EVERY: 10,
   COMBO_BURST_SPEED: 1.6,
-  SKILL_COMBO_INTERVAL: 40,
+  SKILL_COMBO_INTERVAL: 30,
   RABBIT_LEAP_DIST: 15,
+  RABBIT_LEAP_HARD_DIST: 20,
   DOG_BARK_SLOW_MUL: 0.5,
-  DOG_BARK_DURATION: 0.5,
+  DOG_BARK_DURATION: 0.8,
+  DOG_BARK_HARD_SLOW_MUL: 0,
+  DOG_BARK_HARD_DURATION: 1.0,
   STICKMAN_WARP_COMBO: 100,
+  STICKMAN_WARP_COMBO_HARD: 120,
   TURTLE_RAIN_SLIDE_INTERVAL: 5,
   TURTLE_RAIN_SLIDE_DIST: 5,
+  TURTLE_RAIN_SLIDE_NORMAL_DIST: 6,
+  TURTLE_RAIN_SLIDE_HARD_DIST: 7,
   AI_CATCHUP_DIST: 5,
   AI_CATCHUP_INTERVAL: [4, 8],
   MEDALS: [
@@ -235,50 +241,33 @@ const CONFIG = {
     { name: 'SILVER', emoji: '🥈' },
     { name: 'BRONZE', emoji: '🥉' },
   ],
-  ZOOM: 1.28,
-  // Runner's front leg can visually reach ~50 world-px ahead of the hip anchor at full
-  // stride; finish when the line is within that reach so "touching" the line really ends it.
+  BASE_ZOOM: 1.28, 
   FINISH_TOUCH_PX: 50,
 };
 
-// Average pace (m/s) of the two CPU opponents per difficulty; higher = faster
 const DIFFICULTIES = {
-  easy:   { label:'EASY',   paces:[9.2, 8.1] },
-  normal: { label:'NORMAL', paces:[13.2, 11.7] },
-  hard:   { label:'HARD',   paces:[15.0, 13.5] },
+  easy:   { label:'EASY',   paces:[7.3, 6.5] },
+  normal: { label:'NORMAL', paces:[10.6, 9.4] },
+  hard:   { label:'HARD',   paces:[12.0, 10.8] },
 };
 const AI_META = [
   { name:'CPU-A', color:'#4fd1ff' },
   { name:'CPU-B', color:'#ff6bcb' },
 ];
 
-// Playable characters: each is average-to-balanced somewhere and has a real weakness
-// elsewhere, so no single pick dominates. `scale` is sized relative to the dog (1.0)
-// using rough real-world shoulder-height ratios (dog > cat > rabbit > turtle).
-// rainImpulseMul/rainDragMul control how badly rain saps footstep power / adds drag
-// (1.0 = unaffected); comboCap overrides CONFIG.COMBO_MULT_CAP (Infinity = uncapped);
-// comboGrowth overrides the +0.06-per-combo multiplier ramp rate; rainComboGrowthMul
-// further multiplies that ramp rate while it's raining (1.0 = unaffected).
-// Every CONFIG.SKILL_COMBO_INTERVAL combo, rabbit/dog fire an active skill (see
-// triggerRabbitLeap/triggerDogBark); cat's combo scaling is an always-on passive skill
-// instead, so it doesn't hook into that trigger. Turtle has its own combo interval
-// (CONFIG.TURTLE_RAIN_SLIDE_INTERVAL) that only counts while it's raining.
-// Stickman is the joke pick: near-unplayable stats and a total rain lockout
-// (rainImpulseMul 0 + heavy drag = footsteps do nothing while it rains), but hitting
-// CONFIG.STICKMAN_WARP_COMBO combo warps straight to the finish line (triggerStickmanWarp).
 const CHARACTERS = {
   turtle: { name:'TURTLE', desc:'Slow and low top speed on dry land, but speeds up and combos faster in the rain — slides 5m every 5 combo while it rains', color:'#2f9e56', skin:'#6fcf8e', animal:'turtle',
-    impulseMul:0.6, maxSpeedMul:0.75, stumbleMul:0.5, scale:0.34,
+    impulseMul:0.45, maxSpeedMul:0.6, stumbleMul:0.5, scale:0.34,
     rainImpulseMul:2.0, rainDragMul:0.5, rainComboGrowthMul:2.0 },
-  rabbit: { name:'RABBIT', desc:'Explosive off the line, low top speed, hates rain — leaps forward every 40 combo', color:'#ff6f91', skin:'#f4efe6', animal:'rabbit',
+  rabbit: { name:'RABBIT', desc:'Explosive off the line, low top speed, hates rain — leaps forward every 30 combo', color:'#ff6f91', skin:'#f4efe6', animal:'rabbit',
     impulseMul:1.5, maxSpeedMul:0.8, stumbleMul:1.3, scale:0.55,
     rainImpulseMul:0.45, rainDragMul:2.0 },
-  dog:    { name:'DOG',    desc:'Middle-of-the-road in every stat — barks to slow rivals every 40 combo', color:'#c9822f', skin:'#c9955f', animal:'dog',
+  dog:    { name:'DOG',    desc:'Middle-of-the-road in every stat — barks to slow rivals every 30 combo', color:'#c9822f', skin:'#c9955f', animal:'dog',
     impulseMul:1.0, maxSpeedMul:1.0, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0.75, rainDragMul:1.35 },
-  cat:    { name:'CAT',    desc:'Slow to start, but combo builds fast with no ceiling; hates rain', color:'#7c5cff', skin:'#e79452', animal:'cat',
-    impulseMul:0.6, maxSpeedMul:1.0, stumbleMul:0.85, scale:0.62,
-    rainImpulseMul:0.45, rainDragMul:2.0, comboCap:Infinity, comboGrowth:0.1 },
+  cat:    { name:'CAT',    desc:'Slow to start, but combo builds fast with no ceiling; top speed is 1.4x the CPU', color:'#7c5cff', skin:'#e79452', animal:'cat',
+    impulseMul:0.6, maxSpeedMul:1.0, stumbleMul:0.85, scale:0.62, matchCpuSpeed:true, matchCpuSpeedBonus:1.4,
+    rainImpulseMul:0.45, rainDragMul:2.0, comboCap:Infinity, comboGrowth:0.16 },
   stickman: { name:'STICKMAN', desc:'Very slow, frozen solid by rain — combo 100 warps straight to the finish', color:'#e64a19', skin:'#e8dcc8', animal:'stickman',
     impulseMul:0.4, maxSpeedMul:0.55, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0, rainDragMul:4.0 },
@@ -308,8 +297,14 @@ function shadeColor(hex, percent){
   const rr=Math.round((t-R)*p)+R, gg=Math.round((t-G)*p)+G, bb=Math.round((t-B)*p)+B;
   return '#' + (0x1000000 + rr*0x10000 + gg*0x100 + bb).toString(16).slice(1);
 }
+// 新增：RGB 顏色陣列線性插值，用於日夜漸變
+function lerpColor(c1, c2, t) {
+  return `rgb(${Math.round(c1[0] + (c2[0]-c1[0])*t)}, ${Math.round(c1[1] + (c2[1]-c1[1])*t)}, ${Math.round(c1[2] + (c2[2]-c1[2])*t)})`;
+}
+const SKY_SUNSET = [[22,15,48], [91,42,110], [255,95,61], [255,211,110]];
+const SKY_NIGHT  = [[5,3,15], [15,10,30], [20,25,45], [10,40,60]];
 
-/* ================= 音效引擎（Web Audio 即時合成，無需外部音檔） ================= */
+/* ================= 音效引擎 (含動態環境音) ================= */
 class AudioEngine{
   constructor(){ this.ctx=null; this.noiseBuf=null; }
   ensure(){
@@ -329,6 +324,20 @@ class AudioEngine{
     g.exponentialRampToValueAtTime(peak,t0+attack);
     g.exponentialRampToValueAtTime(0.0001,t0+attack+hold+release);
   }
+  
+  // 新增：失誤時群眾嘆息聲
+  sigh(){
+    this.ensure(); const t=this.ctx.currentTime;
+    const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf;
+    const filt=this.ctx.createBiquadFilter(); filt.type='lowpass';
+    filt.frequency.setValueAtTime(600, t);
+    filt.frequency.exponentialRampToValueAtTime(100, t+0.6);
+    const gain=this.ctx.createGain();
+    src.connect(filt); filt.connect(gain); gain.connect(this.ctx.destination);
+    this._env(gain,t,0.1,0.2,0.4,0.3);
+    src.start(t); src.stop(t+0.8);
+  }
+
   footstep(side){
     this.ensure(); const t=this.ctx.currentTime;
     const osc=this.ctx.createOscillator(), gain=this.ctx.createGain();
@@ -346,6 +355,7 @@ class AudioEngine{
     osc.connect(gain); gain.connect(this.ctx.destination);
     this._env(gain,t,0.01,0.05,0.2,0.25);
     osc.start(t); osc.stop(t+0.3);
+    this.sigh(); // 觸發群眾嘆息
   }
   thunder(){
     this.ensure(); const t=this.ctx.currentTime;
@@ -505,7 +515,6 @@ class AudioEngine{
 }
 const audio = new AudioEngine();
 
-// Spoken countdown ("Three"/"Two"/"One") via the browser's built-in text-to-speech
 function speak(text){
   try{
     if(!('speechSynthesis' in window)) return;
@@ -572,8 +581,6 @@ const particles = new Particles();
 /* ================= 跑者程序化繪製 ================= */
 const THIGH=26, SHIN=24, TORSO=34, HEAD_R=13, A_UP=20, A_LO=18;
 
-// Ears / snout / whiskers drawn on top of the head circle, keyed by animal.
-// No-op (and no tail/shell) when `animal` is unset, so AI opponents stay plain.
 function drawAnimalFeatures(animal, hy, fur, phase){
   if(animal==='rabbit'){
     const inner='rgba(255,175,190,0.85)';
@@ -618,7 +625,6 @@ function drawAnimalFeatures(animal, hy, fur, phase){
     ctx.beginPath(); ctx.arc(HEAD_R*0.25, hy+HEAD_R*0.5, HEAD_R*0.35, 0.3, 2.5); ctx.stroke();
   }
 }
-// Shell hump on the back, drawn behind the torso — only the turtle carries one.
 function drawShell(){
   const grd = ctx.createRadialGradient(-4,-TORSO*0.65,4,0,-TORSO*0.55,20);
   grd.addColorStop(0,'#5eea92'); grd.addColorStop(1,'#237a45');
@@ -630,7 +636,6 @@ function drawShell(){
   ctx.beginPath(); ctx.moveTo(-9,-TORSO*0.78); ctx.lineTo(-6,-TORSO*0.32); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(9,-TORSO*0.78); ctx.lineTo(6,-TORSO*0.32); ctx.stroke();
 }
-// Tail near the hip, unrotated so it stays grounded while the torso leans forward.
 function drawTail(animal, phase, fur){
   if(animal==='rabbit'){
     ctx.fillStyle = shadeColor(fur,-5);
@@ -645,8 +650,6 @@ function drawTail(animal, phase, fur){
     ctx.beginPath(); ctx.moveTo(-9,-4); ctx.quadraticCurveTo(-22,-2+wag*8,-24,-16+wag*10); ctx.stroke();
   }
 }
-// Expanding "woof" shockwave rings for the dog's bark skill, drawn world-space
-// (not inside the runner's local transform) so they don't scale/lean with the sprite.
 function drawBarkRings(cx, cy, elapsed, dur){
   for(let i=0;i<3;i++){
     const rt = elapsed - i*0.12;
@@ -657,9 +660,6 @@ function drawBarkRings(cx, cy, elapsed, dur){
     ctx.beginPath(); ctx.arc(cx,cy,10+p*70,0,6.283); ctx.stroke();
   }
 }
-// Plain black doodle stick figure — solid round head, thick rounded strokes, no
-// jersey/torso shape/face. Self-contained (own leg/arm IK) rather than reusing
-// drawRunner's skinned skeleton, since the look has nothing in common with it.
 function drawStickman(o){
   const { x, groundY, phase, speedRatio, scale, alpha, jumpOffset } = o;
   const s = scale || 1;
@@ -739,7 +739,6 @@ function drawRunner(o){
   ctx.save();
   ctx.globalAlpha = alpha==null?1:alpha;
 
-  // 地面陰影
   const shrink = 1 - Math.abs(Math.sin(phase*2))*0.25;
   const shadowW = (34+speedRatio*6) * s * shrink;
   const grd = ctx.createRadialGradient(cx, groundY+4, 2, cx, groundY+4, shadowW);
@@ -782,7 +781,6 @@ function drawRunner(o){
   const legB = legPts(1), legF = legPts(0);
   drawLeg(legB);
 
-  // 短褲
   ctx.fillStyle = shadeColor(jersey,-15);
   ctx.beginPath();
   ctx.roundRect ? ctx.roundRect(-10,-8,20,16,5) : ctx.rect(-10,-8,20,16);
@@ -793,8 +791,7 @@ function drawRunner(o){
   ctx.save();
   ctx.rotate(-lean);
   if(animal==='turtle') drawShell();
-  drawArm(phase); // 後手（與前腳同相位錯開）
-  // 軀幹
+  drawArm(phase);
   const g2 = ctx.createLinearGradient(-12,0,12,-TORSO);
   g2.addColorStop(0, shadeColor(jersey,-18));
   g2.addColorStop(0.5, jersey);
@@ -810,7 +807,6 @@ function drawRunner(o){
   ctx.beginPath(); ctx.moveTo(-11,-TORSO); ctx.quadraticCurveTo(-13,-TORSO*0.5,-9,0); ctx.stroke();
   ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.font='bold 11px system-ui'; ctx.textAlign='center';
   ctx.fillText(bib||'1', 0, -TORSO*0.45);
-  // 頭
   const hy=-TORSO-HEAD_R*0.9;
   const g3=ctx.createRadialGradient(-4,hy-4,2,0,hy,HEAD_R);
   g3.addColorStop(0, shadeColor(skin,25)); g3.addColorStop(1, shadeColor(skin,-10));
@@ -821,7 +817,7 @@ function drawRunner(o){
   ctx.fillStyle='rgba(20,20,30,.85)';
   ctx.beginPath(); ctx.arc(HEAD_R*0.4,hy-1,1.6,0,6.283); ctx.fill();
 
-  drawArm(phase+Math.PI); // 前手
+  drawArm(phase+Math.PI);
   ctx.restore();
 
   drawLeg(legF);
@@ -830,23 +826,24 @@ function drawRunner(o){
 }
 
 /* ================= 背景 / 賽道 ================= */
-function drawSky(){
+function drawSky(progress){
   const g = ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'#160f30'); g.addColorStop(0.45,'#5b2a6e');
-  g.addColorStop(0.72,'#ff5f3d'); g.addColorStop(1,'#ffd36e');
+  // 日夜時間流動漸層
+  g.addColorStop(0, lerpColor(SKY_SUNSET[0], SKY_NIGHT[0], progress));
+  g.addColorStop(0.45, lerpColor(SKY_SUNSET[1], SKY_NIGHT[1], progress));
+  g.addColorStop(0.72, lerpColor(SKY_SUNSET[2], SKY_NIGHT[2], progress));
+  g.addColorStop(1, lerpColor(SKY_SUNSET[3], SKY_NIGHT[3], progress));
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-
-  // stars scattered high in the sky
+  
+  // 星星隨著進入夜晚浮現
   for(let i=0;i<24;i++){
     const sx=(i*137)%W, sy=(i*71)%(H*0.35);
-    ctx.globalAlpha = 0.25+((i*53)%50)/100;
+    ctx.globalAlpha = (0.25+((i*53)%50)/100) * progress; // 隨進度變亮
     ctx.fillStyle='#fff';
     ctx.beginPath(); ctx.arc(sx,sy,1.4,0,6.283); ctx.fill();
   }
   ctx.globalAlpha=1;
-
-  // moon, hung high near the top of the sky
-  const moonX=W*0.5, moonY=H*0.16;
+  const moonX=W*0.5, moonY=H*0.16 - (1-progress)*50; // 月亮隨時間升起
   const mg=ctx.createRadialGradient(moonX,moonY,10,moonX,moonY,200);
   mg.addColorStop(0,'rgba(220,230,255,0.55)'); mg.addColorStop(1,'rgba(220,230,255,0)');
   ctx.fillStyle=mg; ctx.fillRect(0,0,W,H);
@@ -856,18 +853,19 @@ function drawSky(){
   ctx.beginPath(); ctx.arc(moonX+10,moonY+10,4,0,6.283); ctx.fill();
   ctx.beginPath(); ctx.arc(moonX+4,moonY-14,3,0,6.283); ctx.fill();
 }
-// Taipei 101, translated from a reference CSS build (8 identical rim+body tiers on a
-// flared pedestal with a ring medallion, topped by a transition/base/neck/cap/needle
-// spire) into canvas paths at scale S. Built bottom-up: each helper takes the width at
-// its bottom edge and its top edge and returns the y of that top edge, so the stack
-// chains naturally. Fixed on screen with only a faint parallax drift — it's meant to
-// read as a distant, ever-present landmark, not something the runner actually passes.
-function drawTaipei101(worldPx, groundY){
+function drawTaipei101(worldPx, groundY, progress, combo){
   const S = 0.34;
   const cx = W*0.74 - worldPx*0.02;
   const baseY = groundY - 140;
   const dark='#196075', mid='#257e96', white='#f3fbfc', grid='rgba(255,255,255,0.4)';
   ctx.save();
+  
+  // 新增：隨日夜進度與 Combo 點亮霓虹燈
+  const neonIntensity = clamp((progress - 0.4)*1.5 + (combo>20? 0.5:0), 0, 1);
+  if (neonIntensity > 0) {
+      ctx.shadowBlur = 12 * neonIntensity;
+      ctx.shadowColor = '#00e5ff';
+  }
 
   function trapezoid(yBottom,wBottom,wTop,h,color){
     const yTop=yBottom-h;
@@ -892,11 +890,9 @@ function drawTaipei101(worldPx, groundY){
   }
 
   let y = baseY;
-  // base-bottom: flat foundation slab
   const bbW=148*S, bbH=22*S;
   ctx.fillStyle=dark; ctx.fillRect(cx-bbW/2, y-bbH, bbW, bbH);
   y -= bbH;
-  // base-top: wide pedestal necking up, with centre "stair" spine + glass rows
   const btWBottom=140*S, btWTop=140*S*0.64, btH=95*S;
   windowRows(y, btWBottom, btWTop, btH, 6);
   const btTopY = trapezoid(y, btWBottom, btWTop, btH, mid);
@@ -905,14 +901,11 @@ function drawTaipei101(worldPx, groundY){
   ctx.strokeStyle=grid; ctx.lineWidth=1;
   for(let r=1;r<7;r++){ const yy=y-btH*(r/7); ctx.beginPath(); ctx.moveTo(cx-stWBottom/2+2,yy); ctx.lineTo(cx+stWBottom/2-2,yy); ctx.stroke(); }
   y = btTopY;
-  // medallion: white ring, dark face, white centre dot — straddles the pedestal top
   const medR=18*S;
   ctx.fillStyle=white; ctx.beginPath(); ctx.arc(cx,y,medR,0,6.283); ctx.fill();
   ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(cx,y,medR-4*S,0,6.283); ctx.fill();
   ctx.fillStyle=white; ctx.beginPath(); ctx.arc(cx,y,5*S,0,6.283); ctx.fill();
 
-  // 8 identical tiers: body (narrows toward its own bottom) + dark rim (flares at its
-  // own top), with a small white keyhole/ruyi emblem straddling each rim.
   const bodyWBottom=100*S*0.8, bodyWTop=100*S, bodyH=42*S;
   const rimWBottom=110*S*0.94, rimWTop=110*S, rimH=15*S;
   for(let i=0;i<8;i++){
@@ -923,7 +916,6 @@ function drawTaipei101(worldPx, groundY){
     keyhole(rimBottomY - rimH*0.35, 6*S);
   }
 
-  // spire: transition -> base -> neck (striped) -> cap -> needle, blinking light at tip
   y = trapezoid(y, 52*S, 52*S*(70/52), 28*S, dark);
   y = trapezoid(y, 38*S, 38*S*0.8, 14*S, mid);
   const neckW=24*S, neckH=16*S;
@@ -938,9 +930,23 @@ function drawTaipei101(worldPx, groundY){
   const needleW=6*S, needleH=45*S;
   ctx.fillStyle=dark; ctx.fillRect(cx-needleW/2, y-needleH, needleW, needleH);
   y -= needleH;
+  
+  // 塔尖爆亮燈光
+  ctx.shadowBlur = neonIntensity > 0 ? 25 : 0;
   const blink = 0.5+0.5*Math.sin(Date.now()/450);
   ctx.fillStyle='rgba(255,70,70,'+(0.4+blink*0.5).toFixed(2)+')';
   ctx.beginPath(); ctx.arc(cx,y,2.2,0,6.283); ctx.fill();
+  
+  // 向上的探照光束 (深夜限定)
+  if (neonIntensity > 0) {
+      const beam = ctx.createLinearGradient(cx, y, cx, y-200);
+      beam.addColorStop(0, `rgba(0, 229, 255, ${0.4 * neonIntensity})`);
+      beam.addColorStop(1, 'rgba(0, 229, 255, 0)');
+      ctx.fillStyle = beam;
+      ctx.beginPath();
+      ctx.moveTo(cx-1, y); ctx.lineTo(cx-15, y-200); ctx.lineTo(cx+15, y-200); ctx.lineTo(cx+1, y);
+      ctx.fill();
+  }
 
   ctx.restore();
 }
@@ -1012,22 +1018,50 @@ function drawFinishLine(x, groundY){
   ctx.fillText('FINISH', x, groundY-150);
 }
 
-/* ================= 隨機天氣：下雨 (Normal/Hard 限定，會拖慢跑步速度) ================= */
+function drawSpeedLines(speedRatio){
+  if (speedRatio < 0.65) return;
+  const intensity = (speedRatio - 0.65) / 0.35; 
+  ctx.save();
+  ctx.translate(W/2, H/2);
+  const t = Date.now() / 1000;
+  ctx.lineWidth = 1.5 + intensity * 2;
+  
+  for(let i=0; i<35; i++){
+    const angle = (i * 0.43 + t * 0.8) % (Math.PI * 2);
+    const dist = (i * 22 + t * 2000) % Math.max(W, H);
+    const len = 100 + intensity * 250;
+    
+    const grad = ctx.createLinearGradient(
+        Math.cos(angle)*dist, Math.sin(angle)*dist,
+        Math.cos(angle)*(dist+len), Math.sin(angle)*(dist+len)
+    );
+    grad.addColorStop(0, 'rgba(0, 229, 255, 0)');
+    grad.addColorStop(0.5, `rgba(0, 229, 255, ${0.3 * intensity})`);
+    grad.addColorStop(1, 'rgba(0, 229, 255, 0)');
+    
+    ctx.strokeStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle)*dist, Math.sin(angle)*dist);
+    ctx.lineTo(Math.cos(angle)*(dist+len), Math.sin(angle)*(dist+len));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function spawnRaindrop(){
   raindrops.push({
-    x: rand(-60,W+60),
-    y: rand(-60,-10),
-    len: rand(16,30),
-    vx: -rand(90,170),
-    vy: rand(950,1350),
-    alpha: rand(0.25,0.55),
+    x: rand(-60,W+60), y: rand(-60,-10), len: rand(16,30),
+    vx: -rand(90,170), vy: rand(950,1350), alpha: rand(0.25,0.55),
   });
 }
 function updateRain(dt){
   for(let i=0;i<3;i++) spawnRaindrop();
   raindrops.forEach(r=>{ r.x+=r.vx*dt; r.y+=r.vy*dt; });
   raindrops = raindrops.filter(r=>r.y<H+40);
-  if(Math.random()<0.006){ flashScreen(0.35); audio.thunder(); }
+  if(Math.random()<0.006){
+      flashScreen(0.35);
+      audio.thunder();
+  }
 }
 function drawRainTint(){
   ctx.fillStyle='rgba(18,26,44,0.32)';
@@ -1036,13 +1070,10 @@ function drawRainTint(){
 function drawRaindrop(r){
   ctx.strokeStyle='rgba(190,215,255,'+r.alpha.toFixed(2)+')';
   ctx.lineWidth=2;
-  ctx.beginPath();
-  ctx.moveTo(r.x, r.y);
-  ctx.lineTo(r.x+r.vx*0.02, r.y+r.len);
-  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(r.x, r.y); ctx.lineTo(r.x+r.vx*0.02, r.y+r.len); ctx.stroke();
 }
 
-/* ================= 遊戲狀態 ================= */
+/* ================= 遊戲狀態與新增變數 ================= */
 const STATE = { MENU:'MENU', READY:'READY', GO:'GO', RUNNING:'RUNNING', FINISHED:'FINISHED', FALSE_START:'FALSE_START' };
 let state = STATE.MENU;
 let distance=0, speed=0, phase=0, lastSide=null, combo=0;
@@ -1059,6 +1090,10 @@ let aiState = AI_META.map((m,i)=>({ ...m, pace:DIFFICULTIES.normal.paces[i], dis
 let weather = 'clear';
 let weatherTimer = Infinity;
 let raindrops = [];
+
+let currentZoom = CONFIG.BASE_ZOOM;
+let trailQueue = [];
+let freezeTimer = 0;
 
 const centerMsg=document.getElementById('centerMsg');
 const phaseTextEl=document.getElementById('phaseText');
@@ -1091,7 +1126,6 @@ function selectDifficulty(key){
 document.querySelectorAll('.diff-btn').forEach(b=>{
   b.addEventListener('click', ()=> selectDifficulty(b.dataset.diff));
 });
-
 function selectCharacter(key){
   audio.ensure();
   audio.startBGM();
@@ -1121,13 +1155,18 @@ function flashScreen(a){ flashAlpha = Math.max(flashAlpha, a); }
 function enterReady(){
   state=STATE.READY;
   distance=0; speed=0; phase=0; lastSide=null; combo=0; elapsed=0;
+  // finishTime here is only a fallback estimate for an AI that hasn't crossed the line
+  // yet when results are shown; update()'s dist loop overwrites it with the real elapsed
+  // time the moment that AI actually reaches TRACK_LENGTH, so dog-bark stuns / catchup
+  // warps correctly show up in who actually finished when.
   aiState.forEach(a=>{ a.dist=0; a.runPhase=0; a.finishTime = CONFIG.TRACK_LENGTH/a.pace; a.slowMul=1; a.slowTimer=0;
     a.catchupTimer = rand(...CONFIG.AI_CATCHUP_INTERVAL); });
   readyTimer=0;
   countdownValue=3;
   weather='clear';
-  weatherTimer = selectedDifficulty==='easy'? Infinity : rand(4,8);
+  weatherTimer = selectedDifficulty==='easy'? Infinity : rand(2,4);
   raindrops=[];
+  trailQueue=[]; 
   audio.stopRain();
   centerMsg.style.display='none';
   resultsPanel.style.display='none';
@@ -1159,9 +1198,14 @@ function popComboBig(bad){
     popComboBig._t=setTimeout(()=>{ comboBigEl.classList.remove('break'); if(combo<=0) comboBigEl.classList.remove('show'); }, 500);
   }
 }
+function effectiveMaxSpeedMul(cs){
+  if(cs.matchCpuSpeed) return (DIFFICULTIES[selectedDifficulty].paces[0] / CONFIG.MAX_SPEED) * (cs.matchCpuSpeedBonus||1);
+  return cs.maxSpeedMul;
+}
 function triggerComboBurst(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
-  speed=Math.min(CONFIG.MAX_SPEED*CHARACTERS[selectedCharacter].maxSpeedMul, speed+CONFIG.COMBO_BURST_SPEED);
+  const cs0=CHARACTERS[selectedCharacter];
+  speed=Math.min(CONFIG.MAX_SPEED*effectiveMaxSpeedMul(cs0), speed+CONFIG.COMBO_BURST_SPEED);
   audio.beep(1046.5,0.22,'triangle',0.28);
   addShake(10,0.25);
   flashScreen(0.25);
@@ -1170,7 +1214,6 @@ function triggerComboBurst(){
   void comboBigEl.offsetWidth;
   comboBigEl.classList.add('burst');
 }
-// phaseText sits unused during RUNNING, so borrow it for a brief skill-trigger toast.
 function flashSkillText(msg){
   setPhaseText(msg);
   clearTimeout(flashSkillText._t);
@@ -1178,7 +1221,10 @@ function flashSkillText(msg){
 }
 function triggerTurtleSlide(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
-  distance = Math.min(CONFIG.TRACK_LENGTH, distance + CONFIG.TURTLE_RAIN_SLIDE_DIST);
+  const slideDist = selectedDifficulty==='hard'? CONFIG.TURTLE_RAIN_SLIDE_HARD_DIST
+    : selectedDifficulty==='normal'? CONFIG.TURTLE_RAIN_SLIDE_NORMAL_DIST
+    : CONFIG.TURTLE_RAIN_SLIDE_DIST;
+  distance = Math.min(CONFIG.TRACK_LENGTH, distance + slideDist);
   audio.splash();
   addShake(8,0.3);
   flashScreen(0.18);
@@ -1186,7 +1232,8 @@ function triggerTurtleSlide(){
 }
 function triggerRabbitLeap(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
-  distance = Math.min(CONFIG.TRACK_LENGTH, distance + CONFIG.RABBIT_LEAP_DIST);
+  const leapDist = selectedDifficulty==='hard'? CONFIG.RABBIT_LEAP_HARD_DIST : CONFIG.RABBIT_LEAP_DIST;
+  distance = Math.min(CONFIG.TRACK_LENGTH, distance + leapDist);
   rabbitLeapTimer = RABBIT_LEAP_ANIM_DUR;
   audio.leap();
   addShake(9,0.3);
@@ -1194,7 +1241,10 @@ function triggerRabbitLeap(){
   particles.spawnDust(runnerScreenX, groundY, 16, 1);
 }
 function triggerDogBark(){
-  aiState.forEach(a=>{ a.slowMul=CONFIG.DOG_BARK_SLOW_MUL; a.slowTimer=CONFIG.DOG_BARK_DURATION; });
+  const fullStop = selectedDifficulty!=='easy';
+  const slowMul = fullStop? CONFIG.DOG_BARK_HARD_SLOW_MUL : CONFIG.DOG_BARK_SLOW_MUL;
+  const slowDur = fullStop? CONFIG.DOG_BARK_HARD_DURATION : CONFIG.DOG_BARK_DURATION;
+  aiState.forEach(a=>{ a.slowMul=slowMul; a.slowTimer=slowDur; });
   dogBarkTimer = DOG_BARK_ANIM_DUR;
   audio.bark();
   addShake(7,0.25);
@@ -1292,7 +1342,7 @@ function handleInput(side){
       const comboGrowth = (cs.comboGrowth==null? 0.06 : cs.comboGrowth) * rainGrowthMul;
       const mult=Math.min(comboCap, 1+(combo-1)*comboGrowth);
       const rainMul = weather==='rain'? cs.rainImpulseMul : 1;
-      speed=Math.min(CONFIG.MAX_SPEED*cs.maxSpeedMul, speed+CONFIG.IMPULSE*mult*rainMul*cs.impulseMul);
+      speed=Math.min(CONFIG.MAX_SPEED*effectiveMaxSpeedMul(cs), speed+CONFIG.IMPULSE*mult*rainMul*cs.impulseMul);
       lastSide=side;
       flashKey(side,false);
       audio.footstep(side);
@@ -1303,8 +1353,9 @@ function handleInput(side){
         if(selectedCharacter==='rabbit') triggerRabbitLeap();
         else if(selectedCharacter==='dog') triggerDogBark();
       }
-      if(selectedCharacter==='stickman' && combo>0 && combo%CONFIG.STICKMAN_WARP_COMBO===0){
-        triggerStickmanWarp();
+      if(selectedCharacter==='stickman' && combo>0){
+        const warpCombo = selectedDifficulty==='hard'? CONFIG.STICKMAN_WARP_COMBO_HARD : CONFIG.STICKMAN_WARP_COMBO;
+        if(combo%warpCombo===0) triggerStickmanWarp();
       }
       if(selectedCharacter==='turtle' && weather==='rain' && combo>0 && combo%CONFIG.TURTLE_RAIN_SLIDE_INTERVAL===0){
         triggerTurtleSlide();
@@ -1313,17 +1364,16 @@ function handleInput(side){
       combo=0;
       const effectivePenalty = 1-(1-CONFIG.STUMBLE_PENALTY)*cs.stumbleMul;
       speed*=effectivePenalty;
-      audio.stumble();
+      audio.stumble(); // 內含嘆息聲
       addShake(6,0.2);
       flashKey(side,true);
       popComboBig(true);
+      freezeTimer = 0.08; 
     }
     return;
   }
-  if(state===STATE.FINISHED){ return; }
 }
 
-/* ================= 輸入：鍵盤 / 觸控 / ESP32 WebSocket ================= */
 window.addEventListener('keydown',(e)=>{
   if(e.repeat) return;
   if(e.code==='Enter'||e.code==='NumpadEnter'){
@@ -1359,7 +1409,6 @@ function connectWS(){
 updateWsUi(false);
 connectWS();
 
-/* ================= HUD 更新 ================= */
 function updateHUD(){
   const t = state===STATE.RUNNING? elapsed : (state===STATE.FINISHED? finishTime : 0);
   timeBox.textContent = t.toFixed(2);
@@ -1377,8 +1426,6 @@ function updateHUD(){
   weatherBadgeEl.classList.toggle('show', state===STATE.RUNNING && weather==='rain');
 }
 
-/* ================= 主更新 / 渲染迴圈 ================= */
-let lastT=performance.now();
 function update(dt){
   if(state===STATE.READY){
     readyTimer+=dt;
@@ -1395,17 +1442,27 @@ function update(dt){
     if(goFlashTimer>0.15){ state=STATE.RUNNING; raceStartPerf=performance.now(); setPhaseText(''); }
   } else if(state===STATE.RUNNING){
     elapsed=(performance.now()-raceStartPerf)/1000;
-    const rainDrag = weather==='rain'? CHARACTERS[selectedCharacter].rainDragMul : 1;
+    const cs = CHARACTERS[selectedCharacter];
+    const rainDrag = weather==='rain'? cs.rainDragMul : 1;
     speed=Math.max(0, speed - CONFIG.DRAG*rainDrag*speed*dt - 0.4*dt);
     distance=Math.min(CONFIG.TRACK_LENGTH, distance+speed*dt);
     phase += (0.6+speed*0.9)*dt*6;
+    
+    const currentSpeedRatio = clamp(speed/(CONFIG.MAX_SPEED*effectiveMaxSpeedMul(cs)),0,1);
+
+    if(currentSpeedRatio > 0.7) {
+        const jumpOffset = rabbitLeapTimer>0? Math.sin((1-rabbitLeapTimer/RABBIT_LEAP_ANIM_DUR)*Math.PI)*34 : 0;
+        trailQueue.unshift({ phase, speedRatio: currentSpeedRatio, jumpOffset });
+        if(trailQueue.length > 5) trailQueue.pop();
+    } else {
+        if(trailQueue.length > 0) trailQueue.pop(); 
+    }
+
     aiState.forEach(a=>{
       if(a.slowTimer>0){ a.slowTimer=Math.max(0,a.slowTimer-dt); if(a.slowTimer===0) a.slowMul=1; }
       a.catchupTimer -= dt;
       if(a.catchupTimer<=0){
         a.catchupTimer = rand(...CONFIG.AI_CATCHUP_INTERVAL);
-        // Rubber-band: if this CPU has fallen more than AI_CATCHUP_DIST behind, warp it
-        // to just that far behind instead of all the way up to the player.
         if(a.dist<CONFIG.TRACK_LENGTH && a.dist<distance-CONFIG.AI_CATCHUP_DIST){
           a.dist = distance-CONFIG.AI_CATCHUP_DIST;
           const runnerScreenX=W*0.28, groundY=H*0.72;
@@ -1416,19 +1473,16 @@ function update(dt){
       if(a.dist<CONFIG.TRACK_LENGTH){
         a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + a.pace*a.slowMul*dt);
         a.runPhase = (a.runPhase||0) + (0.6+a.pace*a.slowMul*0.9)*dt*6;
+        if(a.dist>=CONFIG.TRACK_LENGTH) a.finishTime = elapsed;
       }
     });
 
     weatherTimer -= dt;
     if(weatherTimer<=0){
       if(weather==='clear'){
-        weather='rain';
-        weatherTimer=rand(4,7);
-        audio.startRain();
+        weather='rain'; weatherTimer=rand(4,7); audio.startRain();
       } else {
-        weather='clear';
-        weatherTimer = rand(5,9);
-        audio.stopRain();
+        weather='clear'; weatherTimer = rand(5,9); audio.stopRain();
       }
     }
     if(weather==='rain') updateRain(dt);
@@ -1440,6 +1494,7 @@ function update(dt){
     falseStartTimer+=dt;
     if(falseStartTimer>1.2) enterReady();
   }
+  
   particles.update(dt);
   if(rabbitLeapTimer>0) rabbitLeapTimer=Math.max(0,rabbitLeapTimer-dt);
   if(dogBarkTimer>0) dogBarkTimer=Math.max(0,dogBarkTimer-dt);
@@ -1459,25 +1514,31 @@ function render(){
 
   ctx.save();
   const zx=W/2, zy=H*0.62;
-  ctx.translate(zx,zy); ctx.scale(CONFIG.ZOOM,CONFIG.ZOOM); ctx.translate(-zx,-zy);
+  
+  const cs = CHARACTERS[selectedCharacter];
+  const speedRatio = clamp(speed/(CONFIG.MAX_SPEED*effectiveMaxSpeedMul(cs)),0,1);
+  let targetZoom = CONFIG.BASE_ZOOM;
+  if(state === STATE.RUNNING || state === STATE.FINISHED){
+      targetZoom += speedRatio * 0.16; 
+      if (combo >= 20) targetZoom += 0.05; 
+  }
+  currentZoom += (targetZoom - currentZoom) * 0.1; 
+
+  ctx.translate(zx,zy); ctx.scale(currentZoom, currentZoom); ctx.translate(-zx,-zy);
 
   const groundY = H*0.72;
   const worldPx = distance*CONFIG.PIXELS_PER_METER;
   const runnerScreenX = W*0.28;
+  const progress = clamp(distance / CONFIG.TRACK_LENGTH, 0, 1); // 賽事進度 (0~1)
 
-  drawSky();
-  drawTaipei101(worldPx, groundY);
+  drawSky(progress);
+  drawTaipei101(worldPx, groundY, progress, combo);
   drawClouds(worldPx);
   drawStadium(worldPx, groundY);
+  drawSpeedLines(speedRatio);
   drawTrack(worldPx, groundY, distance);
   if(weather==='rain') drawRainTint();
 
-  const cs = CHARACTERS[selectedCharacter];
-  const speedRatio = clamp(speed/(CONFIG.MAX_SPEED*cs.maxSpeedMul),0,1);
-
-  // Player stays in the middle lane; CPUs sit in their own lane above/below so all
-  // three are visible even when they share the exact same race distance (e.g. at the
-  // start) instead of stacking on the same pixel and hiding behind each other.
   aiState.forEach((a,i)=>{
     const sx = (a.dist-distance)*CONFIG.PIXELS_PER_METER + runnerScreenX;
     if(sx>-60 && sx<W+60){
@@ -1491,6 +1552,13 @@ function render(){
   if(state===STATE.READY||state===STATE.GO){
     drawRunner({ x:runnerScreenX, groundY, phase:0, speedRatio:0, jersey:cs.color, skin:cs.skin, scale:cs.scale, alpha:1, bib:'1', animal:cs.animal });
   } else if(state===STATE.RUNNING||state===STATE.FINISHED){
+    trailQueue.forEach((t, i) => {
+        const alpha = 0.3 * (1 - i / trailQueue.length);
+        const ghostX = runnerScreenX - (i + 1) * (15 + speedRatio * 8); 
+        drawRunner({ x: ghostX, groundY, phase: t.phase, speedRatio: t.speedRatio, 
+            jersey: cs.color, skin: '#00e5ff', scale: cs.scale, alpha: alpha, bib: '1', animal: cs.animal, jumpOffset: t.jumpOffset });
+    });
+
     const jumpOffset = rabbitLeapTimer>0? Math.sin((1-rabbitLeapTimer/RABBIT_LEAP_ANIM_DUR)*Math.PI)*34 : 0;
     drawRunner({ x:runnerScreenX, groundY, phase, speedRatio, jersey:cs.color, skin:cs.skin, scale:cs.scale, alpha:1, bib:'1', animal:cs.animal, jumpOffset });
     if(dogBarkTimer>0) drawBarkRings(runnerScreenX, groundY-95, DOG_BARK_ANIM_DUR-dogBarkTimer, DOG_BARK_ANIM_DUR);
@@ -1508,9 +1576,18 @@ function render(){
   ctx.restore();
 }
 
+let lastT=performance.now();
 function frame(now){
   const dt = Math.min(0.05, (now-lastT)/1000);
   lastT = now;
+  
+  if(freezeTimer > 0) {
+      freezeTimer -= dt;
+      render();
+      requestAnimationFrame(frame);
+      return;
+  }
+  
   update(dt);
   render();
   requestAnimationFrame(frame);
