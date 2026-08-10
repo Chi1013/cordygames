@@ -34,6 +34,8 @@
   @keyframes flow{ from{background-position:0 0;} to{background-position:-200% 0;} }
   .progress-label{font-size:11px;opacity:.8;margin-top:4px;text-align:right;font-variant-numeric:tabular-nums;}
   .ws-box{padding:8px 12px;display:flex;align-items:center;gap:8px;font-size:12px;white-space:nowrap;}
+  .level-badge{padding:8px 14px;font-size:12px;font-weight:800;letter-spacing:1px;white-space:nowrap;
+    color:var(--gold);border-color:rgba(255,210,63,.4);display:none;}
   .ws-dot{width:10px;height:10px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 8px #ff3b3b;transition:.2s;flex:none;}
   .ws-dot.connected{background:#33ff8a;box-shadow:0 0 10px #33ff8a;}
 
@@ -69,7 +71,7 @@
   .weather-badge.show{opacity:1;}
 
   .center-msg{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);text-align:center;
-    width:min(90%,520px);padding:28px 20px;}
+    width:min(90%,560px);max-height:88vh;overflow-y:auto;pointer-events:auto;padding:28px 20px;z-index:5;}
   .title{font-size:clamp(30px,7vw,58px);font-weight:900;letter-spacing:2px;
     background:linear-gradient(180deg,#fff,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;
     text-shadow:0 0 40px rgba(255,210,63,.35);margin:0;}
@@ -86,7 +88,7 @@
   .results-backdrop.show{opacity:1;}
   .results-panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
     padding:clamp(28px,5vw,52px) clamp(28px,7vw,64px);text-align:center;display:none;
-    width:min(92vw,640px);background:rgba(8,6,22,.86);}
+    width:min(92vw,640px);background:rgba(8,6,22,.86);z-index:5;}
   .result-outcome{font-size:clamp(26px,6.5vw,44px);font-weight:900;letter-spacing:3px;
     animation:drop .5s cubic-bezier(.34,1.56,.64,1);}
   .result-outcome.win{color:#5cff8a;text-shadow:0 0 22px #5cff8a;}
@@ -112,10 +114,10 @@
   .diff-btn:hover{background:rgba(255,255,255,.16);transform:translateY(-2px);}
   .diff-btn.selected{border-color:var(--gold);background:rgba(255,210,63,.18);box-shadow:0 0 16px rgba(255,210,63,.35);}
 
-  .char-row{display:flex;gap:10px;justify-content:center;margin-top:16px;pointer-events:auto;flex-wrap:wrap;}
-  .char-btn{pointer-events:auto;cursor:pointer;padding:10px 14px;border-radius:12px;
+  .char-row{display:flex;gap:8px;justify-content:center;margin-top:14px;pointer-events:auto;flex-wrap:wrap;}
+  .char-btn{pointer-events:auto;cursor:pointer;padding:8px 10px;border-radius:12px;
     background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.18);color:#fff;
-    font-family:inherit;font-weight:800;font-size:12px;line-height:1.5;transition:.12s;max-width:150px;}
+    font-family:inherit;font-weight:800;font-size:11px;line-height:1.4;transition:.12s;max-width:130px;}
   .char-btn span{display:block;font-size:10px;opacity:.7;font-weight:600;letter-spacing:.3px;white-space:normal;}
   .char-btn:hover{background:rgba(255,255,255,.16);transform:translateY(-2px);}
   .char-btn.selected{border-color:#3ddc97;background:rgba(61,220,151,.18);box-shadow:0 0 16px rgba(61,220,151,.35);}
@@ -149,6 +151,7 @@
       <div class="progress-label"><span id="distLabel">0</span> / 100 m</div>
     </div>
     <div class="panel ws-box"><span class="ws-dot" id="wsDot"></span><span id="wsLabel">Connecting...</span></div>
+    <div class="panel level-badge" id="levelBadge"></div>
   </div>
 
   <div class="phase-text" id="phaseText"></div>
@@ -160,9 +163,12 @@
     <div class="subtitle">Alternate LEFT / RIGHT to sprint to the 100m finish line</div>
     <div class="medal-info" id="medalInfo"></div>
     <div class="char-row" id="charRow">
-      <button class="char-btn selected" data-char="balanced">BALANCED<span>even all-rounder</span></button>
-      <button class="char-btn" data-char="power">POWER<span>big strides, slow recovery</span></button>
-      <button class="char-btn" data-char="agile">AGILE<span>quick steps, nimble</span></button>
+      <button class="char-btn" data-char="turtle">🐢 TURTLE<span>slow on dry land, speeds up in rain — slides 5m every 5 combo in rain</span></button>
+      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — leaps at combo 40</span></button>
+      <button class="char-btn selected" data-char="dog">🐶 DOG<span>balanced — barks to slow rivals at combo 40</span></button>
+      <button class="char-btn" data-char="cat">🐱 CAT<span>slow start, fast &amp; uncapped combo</span></button>
+      <button class="char-btn" data-char="stickman">🔥 STICKMAN<span>???</span></button>
+      <button class="char-btn" data-char="random">🎲 RANDOM<span>picks one for you</span></button>
     </div>
     <div class="diff-row" id="diffRow">
       <button class="diff-btn" data-diff="easy">EASY</button>
@@ -180,7 +186,7 @@
     <div class="result-medal-name" id="medalName">GOLD</div>
     <div class="result-best" id="resultBest"></div>
     <div class="race-results" id="raceResults"></div>
-    <div class="results-countdown" id="resultsCountdown">Press ENTER to leave, or wait 10s</div>
+    <div class="results-countdown" id="resultsCountdown">Press ENTER to leave</div>
   </div>
 
   <div class="hud-bottom">
@@ -212,10 +218,19 @@ const CONFIG = {
   COMBO_MULT_CAP: 2.5,
   COMBO_BURST_EVERY: 10,
   COMBO_BURST_SPEED: 1.6,
+  SKILL_COMBO_INTERVAL: 40,
+  RABBIT_LEAP_DIST: 15,
+  DOG_BARK_SLOW_MUL: 0.5,
+  DOG_BARK_DURATION: 0.5,
+  STICKMAN_WARP_COMBO: 100,
+  TURTLE_RAIN_SLIDE_INTERVAL: 5,
+  TURTLE_RAIN_SLIDE_DIST: 5,
+  AI_CATCHUP_DIST: 5,
+  AI_CATCHUP_INTERVAL: [4, 8],
   MEDALS: [
-    { name: 'GOLD', emoji: '🥇', max: 10.5 },
-    { name: 'SILVER', emoji: '🥈', max: 13.0 },
-    { name: 'BRONZE', emoji: '🥉', max: 16.0 },
+    { name: 'GOLD', emoji: '🥇' },
+    { name: 'SILVER', emoji: '🥈' },
+    { name: 'BRONZE', emoji: '🥉' },
   ],
   ZOOM: 1.28,
   // Runner's front leg can visually reach ~50 world-px ahead of the hip anchor at full
@@ -225,23 +240,45 @@ const CONFIG = {
 
 // Average pace (m/s) of the two CPU opponents per difficulty; higher = faster
 const DIFFICULTIES = {
-  easy:   { label:'EASY',   paces:[4.5, 4.0] },
-  normal: { label:'NORMAL', paces:[6.5, 5.8] },
-  hard:   { label:'HARD',   paces:[7.4, 6.7] },
+  easy:   { label:'EASY',   paces:[6.1, 5.4] },
+  normal: { label:'NORMAL', paces:[8.8, 7.8] },
+  hard:   { label:'HARD',   paces:[10.0, 9.0] },
 };
 const AI_META = [
   { name:'CPU-A', color:'#4fd1ff' },
   { name:'CPU-B', color:'#ff6bcb' },
 ];
 
-// Playable characters: trade-off between per-step power and agility/recovery
+// Playable characters: each is average-to-balanced somewhere and has a real weakness
+// elsewhere, so no single pick dominates. `scale` is sized relative to the dog (1.0)
+// using rough real-world shoulder-height ratios (dog > cat > rabbit > turtle).
+// rainImpulseMul/rainDragMul control how badly rain saps footstep power / adds drag
+// (1.0 = unaffected); comboCap overrides CONFIG.COMBO_MULT_CAP (Infinity = uncapped);
+// comboGrowth overrides the +0.06-per-combo multiplier ramp rate; rainComboGrowthMul
+// further multiplies that ramp rate while it's raining (1.0 = unaffected).
+// Every CONFIG.SKILL_COMBO_INTERVAL combo, rabbit/dog fire an active skill (see
+// triggerRabbitLeap/triggerDogBark); cat's combo scaling is an always-on passive skill
+// instead, so it doesn't hook into that trigger. Turtle has its own combo interval
+// (CONFIG.TURTLE_RAIN_SLIDE_INTERVAL) that only counts while it's raining.
+// Stickman is the joke pick: near-unplayable stats and a total rain lockout
+// (rainImpulseMul 0 + heavy drag = footsteps do nothing while it rains), but hitting
+// CONFIG.STICKMAN_WARP_COMBO combo warps straight to the finish line (triggerStickmanWarp).
 const CHARACTERS = {
-  balanced: { name:'BALANCED', desc:'Even all-rounder', color:'#ff2e7e',
-    impulseMul:1.0,  maxSpeedMul:1.0,  stumbleMul:1.0, scale:1.0 },
-  power:    { name:'POWER',    desc:'Big strides, slow to recover', color:'#ff8c3d',
-    impulseMul:1.35, maxSpeedMul:0.9,  stumbleMul:1.3, scale:1.16 },
-  agile:    { name:'AGILE',    desc:'Small quick steps, nimble', color:'#3ddc97',
-    impulseMul:0.75, maxSpeedMul:1.15, stumbleMul:0.6, scale:0.86 },
+  turtle: { name:'TURTLE', desc:'Slow and low top speed on dry land, but speeds up and combos faster in the rain — slides 5m every 5 combo while it rains', color:'#2f9e56', skin:'#6fcf8e', animal:'turtle',
+    impulseMul:0.6, maxSpeedMul:0.75, stumbleMul:0.5, scale:0.34,
+    rainImpulseMul:2.0, rainDragMul:0.5, rainComboGrowthMul:2.0 },
+  rabbit: { name:'RABBIT', desc:'Explosive off the line, low top speed, hates rain — leaps forward every 40 combo', color:'#ff6f91', skin:'#f4efe6', animal:'rabbit',
+    impulseMul:1.5, maxSpeedMul:0.8, stumbleMul:1.3, scale:0.55,
+    rainImpulseMul:0.45, rainDragMul:2.0 },
+  dog:    { name:'DOG',    desc:'Middle-of-the-road in every stat — barks to slow rivals every 40 combo', color:'#c9822f', skin:'#c9955f', animal:'dog',
+    impulseMul:1.0, maxSpeedMul:1.0, stumbleMul:1.0, scale:1.0,
+    rainImpulseMul:0.75, rainDragMul:1.35 },
+  cat:    { name:'CAT',    desc:'Slow to start, but combo builds fast with no ceiling; hates rain', color:'#7c5cff', skin:'#e79452', animal:'cat',
+    impulseMul:0.6, maxSpeedMul:1.0, stumbleMul:0.85, scale:0.62,
+    rainImpulseMul:0.45, rainDragMul:2.0, comboCap:Infinity, comboGrowth:0.1 },
+  stickman: { name:'STICKMAN', desc:'Very slow, frozen solid by rain — combo 100 warps straight to the finish', color:'#e64a19', skin:'#e8dcc8', animal:'stickman',
+    impulseMul:0.4, maxSpeedMul:0.55, stumbleMul:1.0, scale:1.0,
+    rainImpulseMul:0, rainDragMul:4.0 },
 };
 
 /* ================= Canvas 初始化 ================= */
@@ -357,6 +394,50 @@ class AudioEngine{
     this._env(gain,t,0.005,(dur||0.08)*0.4,(dur||0.08)*0.6,peak||0.15);
     osc.start(t); osc.stop(t+(dur||0.08)+0.05);
   }
+  leap(){
+    this.ensure(); const t=this.ctx.currentTime;
+    const osc=this.ctx.createOscillator(), gain=this.ctx.createGain();
+    osc.type='sine';
+    osc.frequency.setValueAtTime(420,t);
+    osc.frequency.exponentialRampToValueAtTime(920,t+0.15);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    this._env(gain,t,0.01,0.05,0.15,0.3);
+    osc.start(t); osc.stop(t+0.25);
+  }
+  bark(){
+    this.beep(170,0.12,'square',0.32);
+    setTimeout(()=>this.beep(120,0.16,'square',0.32), 110);
+  }
+  splash(){
+    this.ensure(); const t=this.ctx.currentTime;
+    const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf;
+    const filt=this.ctx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=1200; filt.Q.value=1.2;
+    const gain=this.ctx.createGain();
+    src.connect(filt); filt.connect(gain); gain.connect(this.ctx.destination);
+    this._env(gain,t,0.01,0.08,0.2,0.35);
+    src.start(t); src.stop(t+0.35);
+    const osc=this.ctx.createOscillator(), g2=this.ctx.createGain();
+    osc.type='sine'; osc.frequency.setValueAtTime(300,t); osc.frequency.exponentialRampToValueAtTime(120,t+0.25);
+    osc.connect(g2); g2.connect(this.ctx.destination);
+    this._env(g2,t,0.01,0.06,0.2,0.25);
+    osc.start(t); osc.stop(t+0.3);
+  }
+  warp(){
+    this.ensure(); const t=this.ctx.currentTime;
+    const osc=this.ctx.createOscillator(), gain=this.ctx.createGain();
+    osc.type='sawtooth';
+    osc.frequency.setValueAtTime(200,t);
+    osc.frequency.exponentialRampToValueAtTime(2000,t+0.35);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    this._env(gain,t,0.02,0.1,0.3,0.35);
+    osc.start(t); osc.stop(t+0.45);
+    const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf;
+    const filt=this.ctx.createBiquadFilter(); filt.type='highpass'; filt.frequency.value=4000;
+    const g2=this.ctx.createGain();
+    src.connect(filt); filt.connect(g2); g2.connect(this.ctx.destination);
+    this._env(g2,t+0.15,0.02,0.15,0.25,0.3);
+    src.start(t+0.15); src.stop(t+0.55);
+  }
   cheer(){
     this.ensure(); const t=this.ctx.currentTime;
     const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf; src.loop=true;
@@ -444,6 +525,12 @@ class Particles{
         life:rand(.3,.6),age:0,size:rand(2,4),base:[210,190,160],type:'dust'});
     }
   }
+  spawnSplash(x,y,n){
+    for(let i=0;i<(n||14);i++){
+      this.list.push({x,y,vx:rand(-70,70),vy:rand(-150,-50),g:280,
+        life:rand(.35,.65),age:0,size:rand(2,4),base:[140,205,255],type:'dust'});
+    }
+  }
   spawnConfetti(x,y,n){
     const colors=['#ff5f7e','#ffd23f','#4fd1ff','#7cff6b','#c86bff'];
     for(let i=0;i<(n||40);i++){
@@ -482,13 +569,169 @@ const particles = new Particles();
 /* ================= 跑者程序化繪製 ================= */
 const THIGH=26, SHIN=24, TORSO=34, HEAD_R=13, A_UP=20, A_LO=18;
 
-function drawRunner(o){
-  const { x, groundY, phase, speedRatio, jersey, skin, scale, alpha, bib } = o;
+// Ears / snout / whiskers drawn on top of the head circle, keyed by animal.
+// No-op (and no tail/shell) when `animal` is unset, so AI opponents stay plain.
+function drawAnimalFeatures(animal, hy, fur, phase){
+  if(animal==='rabbit'){
+    const inner='rgba(255,175,190,0.85)';
+    [-1,1].forEach(side=>{
+      ctx.fillStyle=shadeColor(fur,-6);
+      ctx.beginPath();
+      ctx.ellipse(side*HEAD_R*0.4, hy-HEAD_R*1.9, HEAD_R*0.3, HEAD_R*1.35, side*0.15, 0, 6.283);
+      ctx.fill();
+      ctx.fillStyle=inner;
+      ctx.beginPath();
+      ctx.ellipse(side*HEAD_R*0.4, hy-HEAD_R*1.85, HEAD_R*0.13, HEAD_R*0.95, side*0.15, 0, 6.283);
+      ctx.fill();
+    });
+  } else if(animal==='dog'){
+    ctx.fillStyle=shadeColor(fur,-20);
+    [-1,1].forEach(side=>{
+      ctx.beginPath();
+      ctx.ellipse(side*HEAD_R*0.9, hy+HEAD_R*0.15, HEAD_R*0.42, HEAD_R*0.75, side*0.45, 0, 6.283);
+      ctx.fill();
+    });
+    ctx.fillStyle=shadeColor(fur,15);
+    ctx.beginPath(); ctx.ellipse(HEAD_R*0.55, hy+HEAD_R*0.4, HEAD_R*0.55, HEAD_R*0.4, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle='#241811';
+    ctx.beginPath(); ctx.arc(HEAD_R*0.95, hy+HEAD_R*0.35, 2.4, 0, 6.283); ctx.fill();
+  } else if(animal==='cat'){
+    ctx.fillStyle=fur;
+    ctx.beginPath();
+    ctx.moveTo(-HEAD_R*0.75, hy-HEAD_R*0.55); ctx.lineTo(-HEAD_R*0.2, hy-HEAD_R*1.55); ctx.lineTo(HEAD_R*0.05, hy-HEAD_R*0.5); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(HEAD_R*0.75, hy-HEAD_R*0.55); ctx.lineTo(HEAD_R*0.2, hy-HEAD_R*1.55); ctx.lineTo(-HEAD_R*0.05, hy-HEAD_R*0.5); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.75)'; ctx.lineWidth=1;
+    [-1,1].forEach(side=>{
+      for(let i=0;i<2;i++){
+        ctx.beginPath();
+        ctx.moveTo(side*HEAD_R*0.55, hy+HEAD_R*0.1+i*4);
+        ctx.lineTo(side*HEAD_R*1.4, hy+HEAD_R*0.02+i*6);
+        ctx.stroke();
+      }
+    });
+  } else if(animal==='turtle'){
+    ctx.strokeStyle=shadeColor(fur,-35); ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.arc(HEAD_R*0.25, hy+HEAD_R*0.5, HEAD_R*0.35, 0.3, 2.5); ctx.stroke();
+  }
+}
+// Shell hump on the back, drawn behind the torso — only the turtle carries one.
+function drawShell(){
+  const grd = ctx.createRadialGradient(-4,-TORSO*0.65,4,0,-TORSO*0.55,20);
+  grd.addColorStop(0,'#5eea92'); grd.addColorStop(1,'#237a45');
+  ctx.fillStyle=grd;
+  ctx.beginPath(); ctx.ellipse(0,-TORSO*0.55,18,16,0,0,6.283); ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.moveTo(-13,-TORSO*0.55); ctx.lineTo(13,-TORSO*0.55); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,-TORSO*0.85); ctx.lineTo(0,-TORSO*0.25); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-9,-TORSO*0.78); ctx.lineTo(-6,-TORSO*0.32); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(9,-TORSO*0.78); ctx.lineTo(6,-TORSO*0.32); ctx.stroke();
+}
+// Tail near the hip, unrotated so it stays grounded while the torso leans forward.
+function drawTail(animal, phase, fur){
+  if(animal==='rabbit'){
+    ctx.fillStyle = shadeColor(fur,-5);
+    ctx.beginPath(); ctx.arc(-12,-6,6,0,6.283); ctx.fill();
+  } else if(animal==='dog'){
+    const wag = Math.sin(phase*3)*0.5;
+    ctx.strokeStyle = shadeColor(fur,-15); ctx.lineWidth=5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-9,-4); ctx.quadraticCurveTo(-20,-14+wag*6,-16,-24+wag*4); ctx.stroke();
+  } else if(animal==='cat'){
+    const wag = Math.sin(phase*2)*0.4;
+    ctx.strokeStyle = shadeColor(fur,-10); ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-9,-4); ctx.quadraticCurveTo(-22,-2+wag*8,-24,-16+wag*10); ctx.stroke();
+  }
+}
+// Expanding "woof" shockwave rings for the dog's bark skill, drawn world-space
+// (not inside the runner's local transform) so they don't scale/lean with the sprite.
+function drawBarkRings(cx, cy, elapsed, dur){
+  for(let i=0;i<3;i++){
+    const rt = elapsed - i*0.12;
+    if(rt<=0 || rt>dur) continue;
+    const p = rt/dur;
+    ctx.strokeStyle='rgba(255,255,255,'+((1-p)*0.75).toFixed(2)+')';
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(cx,cy,10+p*70,0,6.283); ctx.stroke();
+  }
+}
+// Plain black doodle stick figure — solid round head, thick rounded strokes, no
+// jersey/torso shape/face. Self-contained (own leg/arm IK) rather than reusing
+// drawRunner's skinned skeleton, since the look has nothing in common with it.
+function drawStickman(o){
+  const { x, groundY, phase, speedRatio, scale, alpha, jumpOffset } = o;
   const s = scale || 1;
   const lean = 0.10 + speedRatio*0.34;
   const bounce = Math.abs(Math.sin(phase*2)) * (4+speedRatio*5) * s;
   const legLen = (THIGH+SHIN) * s * 0.94;
-  const cx = x, cy = groundY - legLen - bounce;
+  const cx = x, cy = groundY - legLen - bounce - (jumpOffset||0);
+
+  ctx.save();
+  ctx.globalAlpha = alpha==null?1:alpha;
+
+  const shrink = 1 - Math.abs(Math.sin(phase*2))*0.25;
+  const shadowW = (34+speedRatio*6) * s * shrink;
+  const grd = ctx.createRadialGradient(cx, groundY+4, 2, cx, groundY+4, shadowW);
+  grd.addColorStop(0,'rgba(0,0,0,0.45)');
+  grd.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=grd;
+  ctx.beginPath(); ctx.ellipse(cx, groundY+4, shadowW, shadowW*0.28, 0, 0, 6.283); ctx.fill();
+
+  ctx.translate(cx, cy);
+  ctx.scale(s, s);
+
+  function legPts(i){
+    const t = phase + i*Math.PI;
+    const thighA = Math.sin(t)*(0.5+speedRatio*0.55);
+    const kx = Math.sin(thighA)*THIGH, ky=Math.cos(thighA)*THIGH;
+    const bend = Math.max(0,Math.sin(t+0.4))*(0.8+speedRatio*0.8);
+    const shinA = thighA+bend;
+    const fx = kx+Math.sin(shinA)*SHIN, fy=ky+Math.cos(shinA)*SHIN;
+    return {kx,ky,fx,fy};
+  }
+  function drawLimb(pt){
+    ctx.strokeStyle='#0a0a0a';
+    ctx.lineWidth=10; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(pt.kx,pt.ky); ctx.lineTo(pt.fx,pt.fy); ctx.stroke();
+  }
+  function drawArm(t){
+    const shY=-TORSO;
+    const swingA = Math.sin(t)*(0.6+speedRatio*0.5);
+    const ex = Math.sin(swingA)*A_UP, ey = shY+Math.cos(swingA)*A_UP;
+    const bend = 0.6+Math.max(0,Math.sin(t))*0.5;
+    const handA = swingA+bend;
+    const hx = ex+Math.sin(handA)*A_LO, hy=ey+Math.cos(handA)*A_LO;
+    ctx.strokeStyle='#0a0a0a';
+    ctx.lineWidth=9; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(0,shY); ctx.lineTo(ex,ey); ctx.lineTo(hx,hy); ctx.stroke();
+  }
+
+  const legB = legPts(1), legF = legPts(0);
+  drawLimb(legB);
+
+  ctx.save();
+  ctx.rotate(-lean);
+  drawArm(phase);
+  ctx.strokeStyle='#0a0a0a'; ctx.lineWidth=11; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-TORSO); ctx.stroke();
+  const hy=-TORSO-HEAD_R*1.15;
+  ctx.fillStyle='#0a0a0a';
+  ctx.beginPath(); ctx.arc(0,hy,HEAD_R*1.2,0,6.283); ctx.fill();
+  drawArm(phase+Math.PI);
+  ctx.restore();
+
+  drawLimb(legF);
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawRunner(o){
+  if(o.animal==='stickman'){ drawStickman(o); return; }
+  const { x, groundY, phase, speedRatio, jersey, skin, scale, alpha, bib, animal, jumpOffset } = o;
+  const s = scale || 1;
+  const lean = 0.10 + speedRatio*0.34;
+  const bounce = Math.abs(Math.sin(phase*2)) * (4+speedRatio*5) * s;
+  const legLen = (THIGH+SHIN) * s * 0.94;
+  const cx = x, cy = groundY - legLen - bounce - (jumpOffset||0);
 
   ctx.save();
   ctx.globalAlpha = alpha==null?1:alpha;
@@ -542,8 +785,11 @@ function drawRunner(o){
   ctx.roundRect ? ctx.roundRect(-10,-8,20,16,5) : ctx.rect(-10,-8,20,16);
   ctx.fill();
 
+  drawTail(animal, phase, skin);
+
   ctx.save();
   ctx.rotate(-lean);
+  if(animal==='turtle') drawShell();
   drawArm(phase); // 後手（與前腳同相位錯開）
   // 軀幹
   const g2 = ctx.createLinearGradient(-12,0,12,-TORSO);
@@ -566,14 +812,11 @@ function drawRunner(o){
   const g3=ctx.createRadialGradient(-4,hy-4,2,0,hy,HEAD_R);
   g3.addColorStop(0, shadeColor(skin,25)); g3.addColorStop(1, shadeColor(skin,-10));
   ctx.fillStyle=g3; ctx.beginPath(); ctx.arc(0,hy,HEAD_R,0,6.283); ctx.fill();
+  drawAnimalFeatures(animal, hy, skin);
   ctx.strokeStyle=jersey; ctx.lineWidth=4;
   ctx.beginPath(); ctx.arc(0,hy,HEAD_R*0.95,-2.6,-0.5); ctx.stroke();
   ctx.fillStyle='rgba(20,20,30,.85)';
   ctx.beginPath(); ctx.arc(HEAD_R*0.4,hy-1,1.6,0,6.283); ctx.fill();
-  const flick = Math.sin(phase*2)*4;
-  ctx.strokeStyle=shadeColor(skin,-30); ctx.lineWidth=4; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-HEAD_R*0.7,hy-3);
-  ctx.quadraticCurveTo(-HEAD_R*1.6+flick,hy+2,-HEAD_R*1.3+flick,hy+10); ctx.stroke();
 
   drawArm(phase+Math.PI); // 前手
   ctx.restore();
@@ -609,6 +852,94 @@ function drawSky(){
   ctx.beginPath(); ctx.arc(moonX-12,moonY-8,6,0,6.283); ctx.fill();
   ctx.beginPath(); ctx.arc(moonX+10,moonY+10,4,0,6.283); ctx.fill();
   ctx.beginPath(); ctx.arc(moonX+4,moonY-14,3,0,6.283); ctx.fill();
+}
+// Taipei 101, translated from a reference CSS build (8 identical rim+body tiers on a
+// flared pedestal with a ring medallion, topped by a transition/base/neck/cap/needle
+// spire) into canvas paths at scale S. Built bottom-up: each helper takes the width at
+// its bottom edge and its top edge and returns the y of that top edge, so the stack
+// chains naturally. Fixed on screen with only a faint parallax drift — it's meant to
+// read as a distant, ever-present landmark, not something the runner actually passes.
+function drawTaipei101(worldPx, groundY){
+  const S = 0.34;
+  const cx = W*0.74 - worldPx*0.02;
+  const baseY = groundY - 140;
+  const dark='#196075', mid='#257e96', white='#f3fbfc', grid='rgba(255,255,255,0.4)';
+  ctx.save();
+
+  function trapezoid(yBottom,wBottom,wTop,h,color){
+    const yTop=yBottom-h;
+    ctx.fillStyle=color;
+    ctx.beginPath();
+    ctx.moveTo(cx-wBottom/2,yBottom); ctx.lineTo(cx-wTop/2,yTop);
+    ctx.lineTo(cx+wTop/2,yTop); ctx.lineTo(cx+wBottom/2,yBottom);
+    ctx.closePath(); ctx.fill();
+    return yTop;
+  }
+  function windowRows(yBottom,wBottom,wTop,h,rows){
+    ctx.strokeStyle=grid; ctx.lineWidth=1;
+    for(let r=1;r<rows;r++){
+      const t=r/rows, y=yBottom-h*t, w=wBottom+(wTop-wBottom)*t;
+      ctx.beginPath(); ctx.moveTo(cx-w/2,y); ctx.lineTo(cx+w/2,y); ctx.stroke();
+    }
+  }
+  function keyhole(yCenter,r){
+    ctx.fillStyle=white;
+    ctx.beginPath(); ctx.arc(cx,yCenter,r,0,6.283); ctx.fill();
+    ctx.fillRect(cx-r*0.35, yCenter, r*0.7, r*1.7);
+  }
+
+  let y = baseY;
+  // base-bottom: flat foundation slab
+  const bbW=148*S, bbH=22*S;
+  ctx.fillStyle=dark; ctx.fillRect(cx-bbW/2, y-bbH, bbW, bbH);
+  y -= bbH;
+  // base-top: wide pedestal necking up, with centre "stair" spine + glass rows
+  const btWBottom=140*S, btWTop=140*S*0.64, btH=95*S;
+  windowRows(y, btWBottom, btWTop, btH, 6);
+  const btTopY = trapezoid(y, btWBottom, btWTop, btH, mid);
+  const stWBottom=44*S, stWTop=44*S*0.6;
+  const stTopY = trapezoid(y, stWBottom, stWTop, btH, dark);
+  ctx.strokeStyle=grid; ctx.lineWidth=1;
+  for(let r=1;r<7;r++){ const yy=y-btH*(r/7); ctx.beginPath(); ctx.moveTo(cx-stWBottom/2+2,yy); ctx.lineTo(cx+stWBottom/2-2,yy); ctx.stroke(); }
+  y = btTopY;
+  // medallion: white ring, dark face, white centre dot — straddles the pedestal top
+  const medR=18*S;
+  ctx.fillStyle=white; ctx.beginPath(); ctx.arc(cx,y,medR,0,6.283); ctx.fill();
+  ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(cx,y,medR-4*S,0,6.283); ctx.fill();
+  ctx.fillStyle=white; ctx.beginPath(); ctx.arc(cx,y,5*S,0,6.283); ctx.fill();
+
+  // 8 identical tiers: body (narrows toward its own bottom) + dark rim (flares at its
+  // own top), with a small white keyhole/ruyi emblem straddling each rim.
+  const bodyWBottom=100*S*0.8, bodyWTop=100*S, bodyH=42*S;
+  const rimWBottom=110*S*0.94, rimWTop=110*S, rimH=15*S;
+  for(let i=0;i<8;i++){
+    windowRows(y, bodyWBottom, bodyWTop, bodyH, 4);
+    y = trapezoid(y, bodyWBottom, bodyWTop, bodyH, mid);
+    const rimBottomY = y;
+    y = trapezoid(y, rimWBottom, rimWTop, rimH, dark);
+    keyhole(rimBottomY - rimH*0.35, 6*S);
+  }
+
+  // spire: transition -> base -> neck (striped) -> cap -> needle, blinking light at tip
+  y = trapezoid(y, 52*S, 52*S*(70/52), 28*S, dark);
+  y = trapezoid(y, 38*S, 38*S*0.8, 14*S, mid);
+  const neckW=24*S, neckH=16*S;
+  ctx.fillStyle=dark; ctx.fillRect(cx-neckW/2, y-neckH, neckW, neckH);
+  ctx.strokeStyle=grid; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(cx-neckW*0.2,y-neckH); ctx.lineTo(cx-neckW*0.2,y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+neckW*0.2,y-neckH); ctx.lineTo(cx+neckW*0.2,y); ctx.stroke();
+  y -= neckH;
+  const capW=16*S, capH=8*S;
+  ctx.fillStyle=mid; ctx.fillRect(cx-capW/2, y-capH, capW, capH);
+  y -= capH;
+  const needleW=6*S, needleH=45*S;
+  ctx.fillStyle=dark; ctx.fillRect(cx-needleW/2, y-needleH, needleW, needleH);
+  y -= needleH;
+  const blink = 0.5+0.5*Math.sin(Date.now()/450);
+  ctx.fillStyle='rgba(255,70,70,'+(0.4+blink*0.5).toFixed(2)+')';
+  ctx.beginPath(); ctx.arc(cx,y,2.2,0,6.283); ctx.fill();
+
+  ctx.restore();
 }
 function drawCloud(x,y,w){
   ctx.fillStyle='rgba(255,255,255,0.35)';
@@ -718,9 +1049,11 @@ let elapsed=0, raceStartPerf=0, finishTime=0;
 let readyTimer=0, countdownValue=3, goFlashTimer=0, falseStartTimer=0;
 let flashAlpha=0;
 let shakeMag=0, shakeTime=0, shakeDur=0.001;
+const RABBIT_LEAP_ANIM_DUR=0.45, DOG_BARK_ANIM_DUR=0.6;
+let rabbitLeapTimer=0, dogBarkTimer=0;
 let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
 let selectedDifficulty = 'normal';
-let selectedCharacter = 'balanced';
+let selectedCharacter = 'dog';
 let aiState = AI_META.map((m,i)=>({ ...m, pace:DIFFICULTIES.normal.paces[i], dist:0, finishTime:0 }));
 let weather = 'clear';
 let weatherTimer = Infinity;
@@ -739,10 +1072,12 @@ const keyL=document.getElementById('keyL');
 const keyR=document.getElementById('keyR');
 const wsDot=document.getElementById('wsDot');
 const wsLabel=document.getElementById('wsLabel');
+const levelBadge=document.getElementById('levelBadge');
+const touchL=document.getElementById('touchL');
+const touchR=document.getElementById('touchR');
 const flashEl=document.getElementById('flash');
 const resultsBackdropEl=document.getElementById('resultsBackdrop');
 const resultsCountdownEl=document.getElementById('resultsCountdown');
-let resultsTimer=null;
 
 function selectDifficulty(key){
   audio.ensure();
@@ -759,8 +1094,10 @@ document.querySelectorAll('.diff-btn').forEach(b=>{
 function selectCharacter(key){
   audio.ensure();
   audio.startBGM();
-  selectedCharacter = key;
-  document.querySelectorAll('.char-btn').forEach(b=>b.classList.toggle('selected', b.dataset.char===key));
+  const animalKeys = Object.keys(CHARACTERS);
+  const resolved = key==='random'? animalKeys[Math.floor(Math.random()*animalKeys.length)] : key;
+  selectedCharacter = resolved;
+  document.querySelectorAll('.char-btn').forEach(b=>b.classList.toggle('selected', b.dataset.char===resolved));
 }
 document.querySelectorAll('.char-btn').forEach(b=>{
   b.addEventListener('click', ()=> selectCharacter(b.dataset.char));
@@ -781,10 +1118,10 @@ function flashKey(side, bad){
 function flashScreen(a){ flashAlpha = Math.max(flashAlpha, a); }
 
 function enterReady(){
-  clearTimeout(resultsTimer);
   state=STATE.READY;
   distance=0; speed=0; phase=0; lastSide=null; combo=0; elapsed=0;
-  aiState.forEach(a=>{ a.dist=0; a.runPhase=0; a.finishTime = CONFIG.TRACK_LENGTH/a.pace; });
+  aiState.forEach(a=>{ a.dist=0; a.runPhase=0; a.finishTime = CONFIG.TRACK_LENGTH/a.pace; a.slowMul=1; a.slowTimer=0;
+    a.catchupTimer = rand(...CONFIG.AI_CATCHUP_INTERVAL); });
   readyTimer=0;
   countdownValue=3;
   weather='clear';
@@ -799,7 +1136,6 @@ function enterReady(){
   speak('Three');
 }
 function leaveResults(){
-  clearTimeout(resultsTimer);
   state=STATE.MENU;
   resultsPanel.style.display='none';
   resultsBackdropEl.classList.remove('show');
@@ -833,6 +1169,45 @@ function triggerComboBurst(){
   void comboBigEl.offsetWidth;
   comboBigEl.classList.add('burst');
 }
+// phaseText sits unused during RUNNING, so borrow it for a brief skill-trigger toast.
+function flashSkillText(msg){
+  setPhaseText(msg);
+  clearTimeout(flashSkillText._t);
+  flashSkillText._t=setTimeout(()=>{ if(state===STATE.RUNNING) setPhaseText(''); }, 700);
+}
+function triggerTurtleSlide(){
+  const runnerScreenX=W*0.28, groundY=H*0.72;
+  distance = Math.min(CONFIG.TRACK_LENGTH, distance + CONFIG.TURTLE_RAIN_SLIDE_DIST);
+  audio.splash();
+  addShake(8,0.3);
+  flashScreen(0.18);
+  particles.spawnSplash(runnerScreenX, groundY, 16);
+}
+function triggerRabbitLeap(){
+  const runnerScreenX=W*0.28, groundY=H*0.72;
+  distance = Math.min(CONFIG.TRACK_LENGTH, distance + CONFIG.RABBIT_LEAP_DIST);
+  rabbitLeapTimer = RABBIT_LEAP_ANIM_DUR;
+  audio.leap();
+  addShake(9,0.3);
+  flashScreen(0.22);
+  particles.spawnDust(runnerScreenX, groundY, 16, 1);
+}
+function triggerDogBark(){
+  aiState.forEach(a=>{ a.slowMul=CONFIG.DOG_BARK_SLOW_MUL; a.slowTimer=CONFIG.DOG_BARK_DURATION; });
+  dogBarkTimer = DOG_BARK_ANIM_DUR;
+  audio.bark();
+  addShake(7,0.25);
+  flashScreen(0.15);
+}
+function triggerStickmanWarp(){
+  const runnerScreenX=W*0.28, groundY=H*0.72;
+  distance = CONFIG.TRACK_LENGTH;
+  audio.warp();
+  addShake(16,0.45);
+  flashScreen(0.9);
+  particles.spawnConfetti(runnerScreenX, groundY-60, 40);
+  flashSkillText('🔥 WARP! Teleported to the finish!');
+}
 function triggerFalseStart(){
   state=STATE.FALSE_START; falseStartTimer=0;
   audio.beep(180,0.3,'sawtooth',0.25);
@@ -858,27 +1233,29 @@ function finishRace(){
   if(!bestTime || finishTime<bestTime){ bestTime=finishTime; localStorage.setItem('sprint_best', String(bestTime)); isBest=true; }
   showResults(isBest);
 }
-function pickMedal(t){
-  for(const m of CONFIG.MEDALS) if(t<=m.max) return m;
-  return { name:'TRY AGAIN', emoji:'🏅' };
+function pickMedal(rank){
+  return CONFIG.MEDALS[rank] || { name:'TRY AGAIN', emoji:'🏅' };
 }
 function renderMedalInfo(){
-  document.getElementById('medalInfo').innerHTML = CONFIG.MEDALS.map(m=>
-    '<span>'+m.emoji+' '+m.name+' ≤ '+m.max.toFixed(1)+'s</span>'
+  const ordinals = ['1st','2nd','3rd'];
+  document.getElementById('medalInfo').innerHTML = CONFIG.MEDALS.map((m,i)=>
+    '<span>'+m.emoji+' '+m.name+' — '+ordinals[i]+' place</span>'
   ).join('');
 }
 renderMedalInfo();
 function showResults(isBest){
-  const medal=pickMedal(finishTime);
+  const list = [
+    { name:'YOU', time:finishTime, isPlayer:true },
+    ...aiState.map(a=>({ name:a.name, time:a.finishTime, isPlayer:false })),
+  ].sort((a,b)=>a.time-b.time);
+  const playerRank = list.findIndex(r=>r.isPlayer);
+  const medal=pickMedal(playerRank);
+
   document.getElementById('medalEmoji').textContent=medal.emoji;
   document.getElementById('resultTime').textContent=finishTime.toFixed(2)+'s';
   document.getElementById('medalName').textContent=medal.name;
   document.getElementById('resultBest').textContent = isBest? '🎉 NEW RECORD!' : ('BEST: '+bestTime.toFixed(2)+'s');
 
-  const list = [
-    { name:'YOU', time:finishTime, isPlayer:true },
-    ...aiState.map(a=>({ name:a.name, time:a.finishTime, isPlayer:false })),
-  ].sort((a,b)=>a.time-b.time);
   const rankIcons=['🥇','🥈','🥉'];
   document.getElementById('raceResults').innerHTML = list.map((r,i)=>
     '<div class="rank-row'+(r.isPlayer?' me':'')+'">'
@@ -897,9 +1274,6 @@ function showResults(isBest){
   resultsBackdropEl.classList.add('show');
   resultsPanel.style.display='block';
   setPhaseText('');
-
-  clearTimeout(resultsTimer);
-  resultsTimer=setTimeout(leaveResults, 10000);
 }
 
 function handleInput(side){
@@ -912,8 +1286,11 @@ function handleInput(side){
     const cs = CHARACTERS[selectedCharacter];
     if(side!==lastSide){
       combo++;
-      const mult=Math.min(CONFIG.COMBO_MULT_CAP, 1+(combo-1)*0.06);
-      const rainMul = weather==='rain'? 0.6 : 1;
+      const comboCap = cs.comboCap==null? CONFIG.COMBO_MULT_CAP : cs.comboCap;
+      const rainGrowthMul = (weather==='rain' && cs.rainComboGrowthMul!=null)? cs.rainComboGrowthMul : 1;
+      const comboGrowth = (cs.comboGrowth==null? 0.06 : cs.comboGrowth) * rainGrowthMul;
+      const mult=Math.min(comboCap, 1+(combo-1)*comboGrowth);
+      const rainMul = weather==='rain'? cs.rainImpulseMul : 1;
       speed=Math.min(CONFIG.MAX_SPEED*cs.maxSpeedMul, speed+CONFIG.IMPULSE*mult*rainMul*cs.impulseMul);
       lastSide=side;
       flashKey(side,false);
@@ -921,6 +1298,16 @@ function handleInput(side){
       particles.spawnDust(runnerScreenX, groundY, 5, side==='L'?-1:1);
       popComboBig(false);
       if(combo>0 && combo%CONFIG.COMBO_BURST_EVERY===0) triggerComboBurst();
+      if(combo>0 && combo%CONFIG.SKILL_COMBO_INTERVAL===0){
+        if(selectedCharacter==='rabbit') triggerRabbitLeap();
+        else if(selectedCharacter==='dog') triggerDogBark();
+      }
+      if(selectedCharacter==='stickman' && combo>0 && combo%CONFIG.STICKMAN_WARP_COMBO===0){
+        triggerStickmanWarp();
+      }
+      if(selectedCharacter==='turtle' && weather==='rain' && combo>0 && combo%CONFIG.TURTLE_RAIN_SLIDE_INTERVAL===0){
+        triggerTurtleSlide();
+      }
     } else {
       combo=0;
       const effectivePenalty = 1-(1-CONFIG.STUMBLE_PENALTY)*cs.stumbleMul;
@@ -945,8 +1332,8 @@ window.addEventListener('keydown',(e)=>{
   if(e.code==='ArrowLeft'||e.code==='KeyA') handleInput('L');
   else if(e.code==='ArrowRight'||e.code==='KeyD') handleInput('R');
 });
-document.getElementById('touchL').addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('L');});
-document.getElementById('touchR').addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('R');});
+touchL.addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('L');});
+touchR.addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('R');});
 
 let ws=null;
 function updateWsUi(connected){
@@ -980,6 +1367,11 @@ function updateHUD(){
   distLabel.textContent = Math.floor(distance);
   bestBadge.textContent = 'BEST: '+(bestTime? bestTime.toFixed(2)+'s':'--');
   centerMsg.style.display = state===STATE.MENU? 'block':'none';
+  const overlayActive = state===STATE.MENU || state===STATE.FINISHED;
+  touchL.style.pointerEvents = overlayActive? 'none':'auto';
+  touchR.style.pointerEvents = overlayActive? 'none':'auto';
+  levelBadge.textContent = DIFFICULTIES[selectedDifficulty].label;
+  levelBadge.style.display = state===STATE.MENU? 'none':'flex';
   updateComboBig();
   weatherBadgeEl.classList.toggle('show', state===STATE.RUNNING && weather==='rain');
 }
@@ -1002,14 +1394,27 @@ function update(dt){
     if(goFlashTimer>0.15){ state=STATE.RUNNING; raceStartPerf=performance.now(); setPhaseText(''); }
   } else if(state===STATE.RUNNING){
     elapsed=(performance.now()-raceStartPerf)/1000;
-    const rainDrag = weather==='rain'? 1.6 : 1;
+    const rainDrag = weather==='rain'? CHARACTERS[selectedCharacter].rainDragMul : 1;
     speed=Math.max(0, speed - CONFIG.DRAG*rainDrag*speed*dt - 0.4*dt);
     distance=Math.min(CONFIG.TRACK_LENGTH, distance+speed*dt);
     phase += (0.6+speed*0.9)*dt*6;
     aiState.forEach(a=>{
+      if(a.slowTimer>0){ a.slowTimer=Math.max(0,a.slowTimer-dt); if(a.slowTimer===0) a.slowMul=1; }
+      a.catchupTimer -= dt;
+      if(a.catchupTimer<=0){
+        a.catchupTimer = rand(...CONFIG.AI_CATCHUP_INTERVAL);
+        // Rubber-band: if this CPU has fallen more than AI_CATCHUP_DIST behind, warp it
+        // to just that far behind instead of all the way up to the player.
+        if(a.dist<CONFIG.TRACK_LENGTH && a.dist<distance-CONFIG.AI_CATCHUP_DIST){
+          a.dist = distance-CONFIG.AI_CATCHUP_DIST;
+          const runnerScreenX=W*0.28, groundY=H*0.72;
+          particles.spawnDust(runnerScreenX-CONFIG.AI_CATCHUP_DIST*CONFIG.PIXELS_PER_METER, groundY, 12, -1);
+          audio.beep(660,0.12,'sine',0.18);
+        }
+      }
       if(a.dist<CONFIG.TRACK_LENGTH){
-        a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + a.pace*dt);
-        a.runPhase = (a.runPhase||0) + (0.6+a.pace*0.9)*dt*6;
+        a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + a.pace*a.slowMul*dt);
+        a.runPhase = (a.runPhase||0) + (0.6+a.pace*a.slowMul*0.9)*dt*6;
       }
     });
 
@@ -1035,6 +1440,8 @@ function update(dt){
     if(falseStartTimer>1.2) enterReady();
   }
   particles.update(dt);
+  if(rabbitLeapTimer>0) rabbitLeapTimer=Math.max(0,rabbitLeapTimer-dt);
+  if(dogBarkTimer>0) dogBarkTimer=Math.max(0,dogBarkTimer-dt);
   if(shakeTime>0){ shakeTime-=dt; if(shakeTime<0) shakeTime=0; }
   if(flashAlpha>0) flashAlpha=Math.max(0, flashAlpha-dt*2.6);
   flashEl.style.opacity = flashAlpha.toFixed(2);
@@ -1058,6 +1465,7 @@ function render(){
   const runnerScreenX = W*0.28;
 
   drawSky();
+  drawTaipei101(worldPx, groundY);
   drawClouds(worldPx);
   drawStadium(worldPx, groundY);
   drawTrack(worldPx, groundY, distance);
@@ -1070,15 +1478,17 @@ function render(){
     const sx = (a.dist-distance)*CONFIG.PIXELS_PER_METER + runnerScreenX;
     if(sx>-60 && sx<W+60){
       const aiSpeedRatio = clamp(a.pace/CONFIG.MAX_SPEED,0,1);
-      drawRunner({ x:sx, groundY:groundY-30*(i+1), phase:a.runPhase||0, speedRatio:aiSpeedRatio,
+      drawRunner({ x:sx, groundY, phase:a.runPhase||0, speedRatio:aiSpeedRatio,
         jersey:a.color, skin:'#e8b48a', scale:0.82, alpha:0.85, bib:String(i+2) });
     }
   });
 
   if(state===STATE.READY||state===STATE.GO){
-    drawRunner({ x:runnerScreenX, groundY, phase:0, speedRatio:0, jersey:cs.color, skin:'#f2c39a', scale:cs.scale, alpha:1, bib:'1' });
+    drawRunner({ x:runnerScreenX, groundY, phase:0, speedRatio:0, jersey:cs.color, skin:cs.skin, scale:cs.scale, alpha:1, bib:'1', animal:cs.animal });
   } else if(state===STATE.RUNNING||state===STATE.FINISHED){
-    drawRunner({ x:runnerScreenX, groundY, phase, speedRatio, jersey:cs.color, skin:'#f2c39a', scale:cs.scale, alpha:1, bib:'1' });
+    const jumpOffset = rabbitLeapTimer>0? Math.sin((1-rabbitLeapTimer/RABBIT_LEAP_ANIM_DUR)*Math.PI)*34 : 0;
+    drawRunner({ x:runnerScreenX, groundY, phase, speedRatio, jersey:cs.color, skin:cs.skin, scale:cs.scale, alpha:1, bib:'1', animal:cs.animal, jumpOffset });
+    if(dogBarkTimer>0) drawBarkRings(runnerScreenX, groundY-95, DOG_BARK_ANIM_DUR-dogBarkTimer, DOG_BARK_ANIM_DUR);
   }
 
   particles.draw(ctx);
