@@ -282,7 +282,6 @@ const CONFIG = {
   DOG_BARK_HARD_SLOW_MUL: 0,
   DOG_BARK_HARD_DURATION: 1.0,
   STICKMAN_WARP_COMBO: 100,
-  STICKMAN_WARP_COMBO_HARD: 120,
   TURTLE_RAIN_SLIDE_INTERVAL: 5,
   TURTLE_RAIN_SLIDE_DIST: 5,
   TURTLE_RAIN_SLIDE_NORMAL_DIST: 6,
@@ -1481,9 +1480,8 @@ function handleInput(side){
         if(selectedCharacter==='rabbit') triggerRabbitLeap();
         else if(selectedCharacter==='dog') triggerDogBark();
       }
-      if(selectedCharacter==='stickman' && combo>0){
-        const warpCombo = selectedDifficulty==='hard'? CONFIG.STICKMAN_WARP_COMBO_HARD : CONFIG.STICKMAN_WARP_COMBO;
-        if(combo%warpCombo===0) triggerStickmanWarp();
+      if(selectedCharacter==='stickman' && combo>0 && combo%CONFIG.STICKMAN_WARP_COMBO===0){
+        triggerStickmanWarp();
       }
       if(selectedCharacter==='turtle' && weather==='rain' && combo>0 && combo%CONFIG.TURTLE_RAIN_SLIDE_INTERVAL===0){
         triggerTurtleSlide();
