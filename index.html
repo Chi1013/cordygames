@@ -262,6 +262,7 @@
    Deploy leaderboard-apps-script.js as a web app (see comments in that file), then
    paste the resulting /exec URL below. Leave blank to disable the leaderboard. */
 const LEADERBOARD_API_URL = 'https://script.google.com/macros/s/AKfycbzN1oT1715qccWDWqfEFkTMusap-lUsvHfGXwIT4fl3cxeicbqlEAAzgjP006rxHQNH/exec';
+const LEADERBOARD_DISPLAY_LIMIT = 10;
 
 /* ================= CONFIG ================= */
 const CONFIG = {
@@ -1223,7 +1224,8 @@ function fetchLeaderboard(difficulty){
         lbList.textContent = 'No records yet — be the first!';
         return;
       }
-      lbList.innerHTML = data.entries.map((e,i)=>
+      const top = data.entries.slice(0, LEADERBOARD_DISPLAY_LIMIT);
+      lbList.innerHTML = top.map((e,i)=>
         '<div class="lb-row"><span class="lb-rank">#'+(i+1)+'</span>'
         +'<span class="lb-name">'+escapeHtml(e.name)+'</span>'
         +'<span class="lb-time">'+Number(e.time).toFixed(2)+'s</span></div>'
