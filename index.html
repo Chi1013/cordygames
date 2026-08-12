@@ -282,6 +282,9 @@ const CONFIG = {
   DOG_BARK_HARD_SLOW_MUL: 0,
   DOG_BARK_HARD_DURATION: 1.0,
   STICKMAN_WARP_COMBO: 100,
+  LUCKY_WARP_COMBO: 100,
+  LUCKY_WARP_CHANCE: 0.5,
+  LUCKY_WARP_CHARACTERS: ['rabbit','turtle','dog'],
   TURTLE_RAIN_SLIDE_INTERVAL: 5,
   TURTLE_RAIN_SLIDE_DIST: 5,
   TURTLE_RAIN_SLIDE_NORMAL_DIST: 6,
@@ -1485,6 +1488,13 @@ function handleInput(side){
       }
       if(selectedCharacter==='turtle' && weather==='rain' && combo>0 && combo%CONFIG.TURTLE_RAIN_SLIDE_INTERVAL===0){
         triggerTurtleSlide();
+      }
+      // rabbit/turtle/dog get a coin-flip shot at an instant warp to the finish every
+      // time combo hits a multiple of 100 — stickman's warp is guaranteed, this is a
+      // rarer bonus for everyone else.
+      if(CONFIG.LUCKY_WARP_CHARACTERS.includes(selectedCharacter)
+        && combo>0 && combo%CONFIG.LUCKY_WARP_COMBO===0 && Math.random()<CONFIG.LUCKY_WARP_CHANCE){
+        triggerStickmanWarp();
       }
     } else {
       combo=0;
