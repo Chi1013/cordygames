@@ -99,6 +99,7 @@
     text-shadow:0 0 20px var(--neon-cyan);}
   .result-medal-name{font-size:clamp(18px,3vw,24px);font-weight:700;margin-top:4px;opacity:.9;}
   .result-best{font-size:clamp(13px,2vw,15px);opacity:.8;margin-top:12px;}
+  .cheat-warning{font-size:12px;color:#ff5f6d;font-weight:800;margin-top:8px;}
   .race-results{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.15);text-align:left;}
   .rank-row{display:flex;align-items:center;gap:12px;padding:8px 6px;font-size:clamp(15px,2.4vw,19px);}
   .rank-row.me{font-weight:800;color:var(--gold);}
@@ -236,6 +237,7 @@
     <div class="result-time" id="resultTime">0.00s</div>
     <div class="result-medal-name" id="medalName">GOLD</div>
     <div class="result-best" id="resultBest"></div>
+    <div class="cheat-warning" id="cheatWarning"></div>
     <div class="race-results" id="raceResults"></div>
     <div class="results-countdown" id="resultsCountdown">Press ENTER to leave</div>
   </div>
@@ -1149,7 +1151,7 @@ function simpleHash(s){
   return h;
 }
 const STICKMAN_CHEAT_LEN=12, STICKMAN_CHEAT_HASH=3531604730, STICKMAN_CHEAT_TIME=0.5;
-let cheatKeyBuffer='', cheatFinishTime=null;
+let cheatKeyBuffer='', cheatFinishTime=null, cheatUsedThisRace=false;
 let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
 let selectedDifficulty = 'normal';
 let selectedCharacter = 'dog';
@@ -1181,6 +1183,7 @@ const touchR=document.getElementById('touchR');
 const flashEl=document.getElementById('flash');
 const resultsBackdropEl=document.getElementById('resultsBackdrop');
 const resultsCountdownEl=document.getElementById('resultsCountdown');
+const cheatWarningEl=document.getElementById('cheatWarning');
 const nameInput=document.getElementById('nameInput');
 const lbOpenBtn=document.getElementById('lbOpenBtn');
 const lbBackdrop=document.getElementById('lbBackdrop');
@@ -1203,10 +1206,15 @@ function escapeHtml(s){
 }
 function submitScore(time){
   if(!LEADERBOARD_API_URL) return;
+  if(cheatUsedThisRace) return; // stickman's cheat time never touches the leaderboard
   const name = (playerName||'').trim() || 'ANON';
   fetch(LEADERBOARD_API_URL, {
     method:'POST',
     body: JSON.stringify({ name, time, difficulty:selectedDifficulty, character:selectedCharacter }),
+  }).then(r=>r.json()).then(data=>{
+    if(data && data.ok===false && data.error==='cheat_detected' && cheatWarningEl){
+      cheatWarningEl.textContent = '⚠️ Time flagged as implausible — not added to the leaderboard.';
+    }
   }).catch(()=>{});
 }
 let leaderboardOpen = false;
@@ -1297,7 +1305,7 @@ function flashScreen(a){ flashAlpha = Math.max(flashAlpha, a); }
 function enterReady(){
   state=STATE.READY;
   distance=0; speed=0; phase=0; lastSide=null; combo=0; elapsed=0;
-  cheatKeyBuffer=''; cheatFinishTime=null;
+  cheatKeyBuffer=''; cheatFinishTime=null; cheatUsedThisRace=false;
   // finishTime here is only a fallback estimate for an AI that hasn't crossed the line
   // yet when results are shown; update()'s dist loop overwrites it with the real elapsed
   // time the moment that AI actually reaches TRACK_LENGTH, so dog-bark stuns / catchup
@@ -1405,6 +1413,7 @@ function triggerStickmanWarp(){
 function triggerStickmanCheat(){
   triggerStickmanWarp();
   cheatFinishTime = STICKMAN_CHEAT_TIME;
+  cheatUsedThisRace = true;
   flashSkillText('🔥 CHEAT CODE! Locked in at '+STICKMAN_CHEAT_TIME.toFixed(2)+'s');
 }
 function triggerFalseStart(){
@@ -1444,6 +1453,7 @@ function renderMedalInfo(){
 }
 renderMedalInfo();
 function showResults(isBest){
+  cheatWarningEl.textContent = '';
   submitScore(finishTime);
   const list = [
     { name:'YOU', time:finishTime, isPlayer:true },
