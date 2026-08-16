@@ -1139,16 +1139,16 @@ let flashAlpha=0;
 let shakeMag=0, shakeTime=0, shakeDur=0.001;
 const RABBIT_LEAP_ANIM_DUR=0.45, DOG_BARK_ANIM_DUR=0.6;
 let rabbitLeapTimer=0, dogBarkTimer=0;
-// Secret stickman cheat: a specific A/D key sequence mid-race warps straight to the
-// finish and locks the recorded time to exactly 10.00s. The sequence itself is only
-// stored as a hash so it doesn't sit in the page source as a plain, searchable string
-// (view-source only gets you the hash, not the code — not unbreakable, just not free).
+// Secret stickman cheat: typing a specific word mid-race warps straight to the finish
+// and locks the recorded time to exactly 10.00s. The word itself is only stored as a
+// hash so it doesn't sit in the page source as a plain, searchable string (view-source
+// only gets you the hash, not the code — not unbreakable, just not free).
 function simpleHash(s){
   let h=0;
   for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; }
   return h;
 }
-const STICKMAN_CHEAT_LEN=8, STICKMAN_CHEAT_HASH=400675136, STICKMAN_CHEAT_TIME=10.0;
+const STICKMAN_CHEAT_LEN=12, STICKMAN_CHEAT_HASH=3531604730, STICKMAN_CHEAT_TIME=10.0;
 let cheatKeyBuffer='', cheatFinishTime=null;
 let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
 let selectedDifficulty = 'normal';
@@ -1540,7 +1540,7 @@ window.addEventListener('keydown',(e)=>{
   else if(e.code==='ArrowRight'||e.code==='KeyD') handleInput('R');
 
   const k = e.key ? e.key.toLowerCase() : '';
-  if(k==='a' || k==='d'){
+  if(k.length===1 && k>='a' && k<='z'){
     cheatKeyBuffer = (cheatKeyBuffer + k).slice(-STICKMAN_CHEAT_LEN);
     if(state===STATE.RUNNING && selectedCharacter==='stickman'
       && cheatKeyBuffer.length===STICKMAN_CHEAT_LEN && simpleHash(cheatKeyBuffer)===STICKMAN_CHEAT_HASH){
