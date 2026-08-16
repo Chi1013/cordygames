@@ -1148,7 +1148,7 @@ function simpleHash(s){
   for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; }
   return h;
 }
-const STICKMAN_CHEAT_LEN=12, STICKMAN_CHEAT_HASH=3531604730, STICKMAN_CHEAT_TIME=10.0;
+const STICKMAN_CHEAT_LEN=12, STICKMAN_CHEAT_HASH=3531604730, STICKMAN_CHEAT_TIME=0.5;
 let cheatKeyBuffer='', cheatFinishTime=null;
 let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
 let selectedDifficulty = 'normal';
