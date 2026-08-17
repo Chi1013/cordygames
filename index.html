@@ -1141,17 +1141,6 @@ let flashAlpha=0;
 let shakeMag=0, shakeTime=0, shakeDur=0.001;
 const RABBIT_LEAP_ANIM_DUR=0.45, DOG_BARK_ANIM_DUR=0.6;
 let rabbitLeapTimer=0, dogBarkTimer=0;
-// Secret stickman cheat: typing a specific word mid-race warps straight to the finish
-// and locks the recorded time to exactly 10.00s. The word itself is only stored as a
-// hash so it doesn't sit in the page source as a plain, searchable string (view-source
-// only gets you the hash, not the code — not unbreakable, just not free).
-function simpleHash(s){
-  let h=0;
-  for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; }
-  return h;
-}
-const STICKMAN_CHEAT_LEN=12, STICKMAN_CHEAT_HASH=3531604730, STICKMAN_CHEAT_TIME=0.5;
-let cheatKeyBuffer='', cheatFinishTime=null, cheatUsedThisRace=false;
 let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
 let selectedDifficulty = 'normal';
 let selectedCharacter = 'dog';
@@ -1206,7 +1195,6 @@ function escapeHtml(s){
 }
 function submitScore(time){
   if(!LEADERBOARD_API_URL) return;
-  if(cheatUsedThisRace) return; // stickman's cheat time never touches the leaderboard
   const name = (playerName||'').trim() || 'ANON';
   fetch(LEADERBOARD_API_URL, {
     method:'POST',
@@ -1305,7 +1293,6 @@ function flashScreen(a){ flashAlpha = Math.max(flashAlpha, a); }
 function enterReady(){
   state=STATE.READY;
   distance=0; speed=0; phase=0; lastSide=null; combo=0; elapsed=0;
-  cheatKeyBuffer=''; cheatFinishTime=null; cheatUsedThisRace=false;
   // finishTime here is only a fallback estimate for an AI that hasn't crossed the line
   // yet when results are shown; update()'s dist loop overwrites it with the real elapsed
   // time the moment that AI actually reaches TRACK_LENGTH, so dog-bark stuns / catchup
@@ -1410,12 +1397,6 @@ function triggerStickmanWarp(){
   particles.spawnConfetti(runnerScreenX, groundY-60, 40);
   flashSkillText('🔥 WARP! Teleported to the finish!');
 }
-function triggerStickmanCheat(){
-  triggerStickmanWarp();
-  cheatFinishTime = STICKMAN_CHEAT_TIME;
-  cheatUsedThisRace = true;
-  flashSkillText('🔥 CHEAT CODE! Locked in at '+STICKMAN_CHEAT_TIME.toFixed(2)+'s');
-}
 function triggerFalseStart(){
   state=STATE.FALSE_START; falseStartTimer=0;
   audio.beep(180,0.3,'sawtooth',0.25);
@@ -1431,8 +1412,7 @@ function triggerGo(){
 }
 function finishRace(){
   state=STATE.FINISHED;
-  finishTime = cheatFinishTime!=null ? cheatFinishTime : elapsed;
-  cheatFinishTime = null;
+  finishTime = elapsed;
   audio.stopRain();
   audio.fanfare(); audio.cheer();
   const runnerScreenX=W*0.28, groundY=H*0.72;
@@ -1548,16 +1528,6 @@ window.addEventListener('keydown',(e)=>{
   }
   if(e.code==='ArrowLeft'||e.code==='KeyA') handleInput('L');
   else if(e.code==='ArrowRight'||e.code==='KeyD') handleInput('R');
-
-  const k = e.key ? e.key.toLowerCase() : '';
-  if(k.length===1 && k>='a' && k<='z'){
-    cheatKeyBuffer = (cheatKeyBuffer + k).slice(-STICKMAN_CHEAT_LEN);
-    if(state===STATE.RUNNING && selectedCharacter==='stickman'
-      && cheatKeyBuffer.length===STICKMAN_CHEAT_LEN && simpleHash(cheatKeyBuffer)===STICKMAN_CHEAT_HASH){
-      cheatKeyBuffer = '';
-      triggerStickmanCheat();
-    }
-  }
 });
 touchL.addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('L');});
 touchR.addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('R');});
