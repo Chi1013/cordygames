@@ -205,7 +205,7 @@
       <button class="char-btn" data-char="turtle">🐢 TURTLE<span>slow on land, fast &amp; slides in rain</span></button>
       <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — leaps at combo 30</span></button>
       <button class="char-btn selected" data-char="dog">🐶 DOG<span>balanced — barks to slow rivals at combo 30</span></button>
-      <button class="char-btn" data-char="cat">🐱 CAT<span>slow start, uncapped combo, top speed = CPU × 1.4</span></button>
+      <button class="char-btn" data-char="cat">🐱 CAT<span>fast start, uncapped combo, top speed = CPU × 1.4</span></button>
       <button class="char-btn" data-char="stickman">🔥 STICKMAN<span>???</span></button>
       <button class="char-btn" data-char="random">🎲 RANDOM<span>picks one for you</span></button>
     </div>
@@ -323,8 +323,8 @@ const CHARACTERS = {
   dog:    { name:'DOG',    desc:'Middle-of-the-road in every stat — barks to slow rivals every 30 combo', color:'#c9822f', skin:'#c9955f', animal:'dog',
     impulseMul:1.0, maxSpeedMul:1.0, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0.75, rainDragMul:1.35 },
-  cat:    { name:'CAT',    desc:'Slow to start, but combo builds fast with no ceiling; top speed is 1.4x the CPU', color:'#7c5cff', skin:'#e79452', animal:'cat',
-    impulseMul:0.6, maxSpeedMul:1.0, stumbleMul:0.85, scale:0.62, matchCpuSpeed:true, matchCpuSpeedBonus:1.4,
+  cat:    { name:'CAT',    desc:'Fast off the line, combo builds fast with no ceiling; top speed is 1.4x the CPU', color:'#7c5cff', skin:'#e79452', animal:'cat',
+    impulseMul:1.1, maxSpeedMul:1.0, stumbleMul:0.85, scale:0.62, matchCpuSpeed:true, matchCpuSpeedBonus:1.4,
     rainImpulseMul:0.45, rainDragMul:2.0, comboCap:Infinity, comboGrowth:0.16 },
   stickman: { name:'STICKMAN', desc:'Very slow, frozen solid by rain — combo 100 warps straight to the finish', color:'#e64a19', skin:'#e8dcc8', animal:'stickman',
     impulseMul:0.4, maxSpeedMul:0.55, stumbleMul:1.0, scale:1.0,
