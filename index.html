@@ -203,9 +203,9 @@
     <div class="medal-info" id="medalInfo"></div>
     <div class="char-row" id="charRow">
       <button class="char-btn" data-char="turtle">🐢 TURTLE<span>slow on land, fast &amp; slides in rain</span></button>
-      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — leaps at combo 30</span></button>
-      <button class="char-btn selected" data-char="dog">🐶 DOG<span>balanced — barks to slow rivals at combo 30</span></button>
-      <button class="char-btn" data-char="cat">🐱 CAT<span>fast start, uncapped combo, top speed = CPU × 1.4</span></button>
+      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — leaps at combo 25</span></button>
+      <button class="char-btn selected" data-char="dog">🐶 DOG<span>balanced — barks to slow rivals at combo 25</span></button>
+      <button class="char-btn" data-char="cat">🐱 CAT<span>fast start, uncapped combo, top speed = CPU × 1.6</span></button>
       <button class="char-btn" data-char="stickman">🔥 STICKMAN<span>???</span></button>
       <button class="char-btn" data-char="random">🎲 RANDOM<span>picks one for you</span></button>
     </div>
@@ -277,21 +277,21 @@ const CONFIG = {
   COMBO_MULT_CAP: 2.5,
   COMBO_BURST_EVERY: 10,
   COMBO_BURST_SPEED: 1.6,
-  SKILL_COMBO_INTERVAL: 30,
-  RABBIT_LEAP_DIST: 15,
-  RABBIT_LEAP_HARD_DIST: 20,
-  DOG_BARK_SLOW_MUL: 0.5,
-  DOG_BARK_DURATION: 0.8,
+  SKILL_COMBO_INTERVAL: 25,
+  RABBIT_LEAP_DIST: 20,
+  RABBIT_LEAP_HARD_DIST: 26,
+  DOG_BARK_SLOW_MUL: 0.3,
+  DOG_BARK_DURATION: 1.1,
   DOG_BARK_HARD_SLOW_MUL: 0,
-  DOG_BARK_HARD_DURATION: 1.0,
+  DOG_BARK_HARD_DURATION: 1.4,
   STICKMAN_WARP_COMBO: 100,
   LUCKY_WARP_COMBO: 80,
   LUCKY_WARP_CHANCE: 0.3,
   LUCKY_WARP_CHARACTERS: ['rabbit','turtle','dog'],
-  TURTLE_RAIN_SLIDE_INTERVAL: 5,
-  TURTLE_RAIN_SLIDE_DIST: 5,
-  TURTLE_RAIN_SLIDE_NORMAL_DIST: 6,
-  TURTLE_RAIN_SLIDE_HARD_DIST: 7,
+  TURTLE_RAIN_SLIDE_INTERVAL: 4,
+  TURTLE_RAIN_SLIDE_DIST: 7,
+  TURTLE_RAIN_SLIDE_NORMAL_DIST: 8,
+  TURTLE_RAIN_SLIDE_HARD_DIST: 9,
   AI_CATCHUP_DIST: 5,
   AI_CATCHUP_INTERVAL: [4, 8],
   MEDALS: [
@@ -314,18 +314,18 @@ const AI_META = [
 ];
 
 const CHARACTERS = {
-  turtle: { name:'TURTLE', desc:'Slow and low top speed on dry land, but speeds up and combos faster in the rain — slides 5m every 5 combo while it rains', color:'#2f9e56', skin:'#6fcf8e', animal:'turtle',
+  turtle: { name:'TURTLE', desc:'Slow and low top speed on dry land, but speeds up and combos faster in the rain — slides 7m every 4 combo while it rains', color:'#2f9e56', skin:'#6fcf8e', animal:'turtle',
     impulseMul:0.45, maxSpeedMul:0.6, stumbleMul:0.5, scale:0.34,
-    rainImpulseMul:2.0, rainDragMul:0.5, rainComboGrowthMul:2.0 },
+    rainImpulseMul:2.5, rainDragMul:0.4, rainComboGrowthMul:2.5 },
   rabbit: { name:'RABBIT', desc:'Explosive off the line, low top speed, hates rain — leaps forward every 30 combo', color:'#ff6f91', skin:'#f4efe6', animal:'rabbit',
     impulseMul:1.5, maxSpeedMul:0.8, stumbleMul:1.3, scale:0.55,
     rainImpulseMul:0.45, rainDragMul:2.0 },
   dog:    { name:'DOG',    desc:'Middle-of-the-road in every stat — barks to slow rivals every 30 combo', color:'#c9822f', skin:'#c9955f', animal:'dog',
     impulseMul:1.0, maxSpeedMul:1.0, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0.75, rainDragMul:1.35 },
-  cat:    { name:'CAT',    desc:'Fast off the line, combo builds fast with no ceiling; top speed is 1.4x the CPU', color:'#7c5cff', skin:'#e79452', animal:'cat',
-    impulseMul:1.1, maxSpeedMul:1.0, stumbleMul:0.85, scale:0.62, matchCpuSpeed:true, matchCpuSpeedBonus:1.4,
-    rainImpulseMul:0.45, rainDragMul:2.0, comboCap:Infinity, comboGrowth:0.16 },
+  cat:    { name:'CAT',    desc:'Fast off the line, combo builds fast with no ceiling; top speed is 1.6x the CPU', color:'#7c5cff', skin:'#e79452', animal:'cat',
+    impulseMul:1.1, maxSpeedMul:1.0, stumbleMul:0.85, scale:0.62, matchCpuSpeed:true, matchCpuSpeedBonus:1.6,
+    rainImpulseMul:0.45, rainDragMul:2.0, comboCap:Infinity, comboGrowth:0.22 },
   stickman: { name:'STICKMAN', desc:'Very slow, frozen solid by rain — combo 100 warps straight to the finish', color:'#e64a19', skin:'#e8dcc8', animal:'stickman',
     impulseMul:0.4, maxSpeedMul:0.55, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0, rainDragMul:4.0 },
