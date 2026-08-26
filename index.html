@@ -332,7 +332,7 @@ const CHARACTERS = {
   // a manual skill: press K mid-race to strike every other racer with lightning
   // (see the 'K' handler near the keydown listener / triggerLightningStrike).
   lightning: { name:'LIGHTNING MAN', desc:'Secret pick — explosive acceleration and top speed; press K to strike every rival with lightning', color:'#ffe066', skin:'#e8f4ff', animal:'lightning',
-    impulseMul:2.4, maxSpeedMul:1.5, stumbleMul:1.0, scale:1.05,
+    impulseMul:5.5, maxSpeedMul:1.5, stumbleMul:1.0, scale:1.05,
     rainImpulseMul:1.0, rainDragMul:1.0 },
 };
 
@@ -1185,7 +1185,7 @@ let flashAlpha=0;
 let shakeMag=0, shakeTime=0, shakeDur=0.001;
 const RABBIT_LEAP_ANIM_DUR=0.45, DOG_BARK_ANIM_DUR=0.6;
 let rabbitLeapTimer=0, dogBarkTimer=0;
-const LIGHTNING_STRIKE_SLOW_DUR=2.0, LIGHTNING_STRIKE_COOLDOWN=4.0, LIGHTNING_STRIKE_ANIM_DUR=0.4;
+const LIGHTNING_STRIKE_SLOW_DUR=2.0, LIGHTNING_STRIKE_COOLDOWN=0, LIGHTNING_STRIKE_ANIM_DUR=0.4;
 let lightningCooldown=0, lightningStrikeAnimTimer=0;
 let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
 let selectedDifficulty = 'normal';
