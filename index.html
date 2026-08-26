@@ -291,6 +291,12 @@ const CONFIG = {
   TURTLE_RAIN_SLIDE_HARD_DIST: 9,
   AI_CATCHUP_DIST: 5,
   AI_CATCHUP_INTERVAL: [4, 8],
+  // CPUs get a random character each race for looks + passive rain effects. No
+  // combo system for them though, so skills fire on a timer+reroll instead of a
+  // simulated combo count. Stickman excluded — an AI that can coin-flip an instant
+  // win isn't fun to race against.
+  AI_CHARACTER_POOL: ['turtle','rabbit','dog','cat'],
+  AI_SKILL_INTERVAL: [4, 7],
   MEDALS: [
     { name: 'GOLD', emoji: '🥇' },
     { name: 'SILVER', emoji: '🥈' },
@@ -326,11 +332,11 @@ const CHARACTERS = {
   stickman: { name:'STICKMAN', desc:'Very slow, frozen solid by rain — combo 100 warps straight to the finish', color:'#e64a19', skin:'#e8dcc8', animal:'stickman',
     impulseMul:0.4, maxSpeedMul:0.55, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0, rainDragMul:4.0 },
-  // Hidden/secret pick — not in the char-row, not in the RANDOM pool, never given to
-  // CPUs. Unlocked only by typing the right code on the menu screen (see the SHA-256
-  // check near the keydown listener). The strongest stats in the roster by far, plus
-  // a manual skill: press K mid-race to strike every other racer with lightning
-  // (see the 'K' handler near the keydown listener / triggerLightningStrike).
+  // Hidden/secret pick — not in the char-row, not in the RANDOM pool, and excluded
+  // from AI_CHARACTER_POOL so CPUs never get it either. Unlocked only by typing the
+  // right code on the menu screen (see the SHA-256 check near the keydown listener).
+  // Also has a manual skill: press K mid-race to strike every other racer with
+  // lightning (see triggerLightningStrike / the 'K' handler near the keydown listener).
   lightning: { name:'LIGHTNING MAN', desc:'Secret pick — explosive acceleration and top speed; press K to strike every rival with lightning', color:'#ffe066', skin:'#e8f4ff', animal:'lightning',
     impulseMul:20.0, maxSpeedMul:8.0, stumbleMul:1.0, scale:1.05,
     rainImpulseMul:1.0, rainDragMul:1.0 },
@@ -687,7 +693,6 @@ function drawAnimalFeatures(animal, hy, fur, phase){
     ctx.strokeStyle=shadeColor(fur,-35); ctx.lineWidth=1.6;
     ctx.beginPath(); ctx.arc(HEAD_R*0.25, hy+HEAD_R*0.5, HEAD_R*0.35, 0.3, 2.5); ctx.stroke();
   } else if(animal==='lightning'){
-    // jagged bolt spiking up off the head, like a lightning-shaped hairdo
     const gy=ctx.createLinearGradient(0,hy-HEAD_R*2.6,0,hy-HEAD_R*0.8);
     gy.addColorStop(0,'#fff9c4'); gy.addColorStop(1,'#ffcc00');
     ctx.fillStyle=gy;
@@ -1187,10 +1192,12 @@ const RABBIT_LEAP_ANIM_DUR=0.45, DOG_BARK_ANIM_DUR=0.6;
 let rabbitLeapTimer=0, dogBarkTimer=0;
 const LIGHTNING_STRIKE_SLOW_DUR=2.0, LIGHTNING_STRIKE_COOLDOWN=0, LIGHTNING_STRIKE_ANIM_DUR=0.4;
 let lightningCooldown=0, lightningStrikeAnimTimer=0;
+let playerSlowMul=1, playerSlowTimer=0; // set by a CPU dog's bark skill
 let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
 let selectedDifficulty = 'normal';
 let selectedCharacter = 'dog';
-let aiState = AI_META.map((m,i)=>({ ...m, pace:DIFFICULTIES.normal.paces[i], dist:0, finishTime:0 }));
+let aiState = AI_META.map((m,i)=>({ ...m, pace:DIFFICULTIES.normal.paces[i], dist:0, finishTime:0,
+  character: CONFIG.AI_CHARACTER_POOL[i % CONFIG.AI_CHARACTER_POOL.length], skillTimer: rand(...CONFIG.AI_SKILL_INTERVAL) }));
 let weather = 'clear';
 let weatherTimer = Infinity;
 let raindrops = [];
@@ -1340,13 +1347,16 @@ function flashScreen(a){ flashAlpha = Math.max(flashAlpha, a); }
 function enterReady(){
   state=STATE.READY;
   distance=0; speed=0; phase=0; lastSide=null; combo=0; elapsed=0;
+  playerSlowMul=1; playerSlowTimer=0;
   lightningCooldown=0; lightningStrikeAnimTimer=0;
   // finishTime here is only a fallback estimate for an AI that hasn't crossed the line
   // yet when results are shown; update()'s dist loop overwrites it with the real elapsed
   // time the moment that AI actually reaches TRACK_LENGTH, so dog-bark stuns / catchup
   // warps correctly show up in who actually finished when.
   aiState.forEach(a=>{ a.dist=0; a.runPhase=0; a.finishTime = CONFIG.TRACK_LENGTH/a.pace; a.slowMul=1; a.slowTimer=0;
-    a.catchupTimer = rand(...CONFIG.AI_CATCHUP_INTERVAL); });
+    a.catchupTimer = rand(...CONFIG.AI_CATCHUP_INTERVAL);
+    a.character = CONFIG.AI_CHARACTER_POOL[Math.floor(Math.random()*CONFIG.AI_CHARACTER_POOL.length)];
+    a.skillTimer = rand(...CONFIG.AI_SKILL_INTERVAL); a.barkAnimTimer=0; });
   readyTimer=0;
   countdownValue=3;
   weather='clear';
@@ -1690,7 +1700,8 @@ function update(dt){
     const cs = CHARACTERS[selectedCharacter];
     const rainDrag = weather==='rain'? cs.rainDragMul : 1;
     speed=Math.max(0, speed - CONFIG.DRAG*rainDrag*speed*dt - 0.4*dt);
-    distance=Math.min(CONFIG.TRACK_LENGTH, distance+speed*dt);
+    if(playerSlowTimer>0){ playerSlowTimer=Math.max(0,playerSlowTimer-dt); if(playerSlowTimer===0) playerSlowMul=1; }
+    distance=Math.min(CONFIG.TRACK_LENGTH, distance+speed*playerSlowMul*dt);
     phase += (0.6+speed*0.9)*dt*6;
     
     const currentSpeedRatio = clamp(speed/(CONFIG.MAX_SPEED*effectiveMaxSpeedMul(cs)),0,1);
@@ -1705,6 +1716,7 @@ function update(dt){
 
     aiState.forEach(a=>{
       if(a.slowTimer>0){ a.slowTimer=Math.max(0,a.slowTimer-dt); if(a.slowTimer===0) a.slowMul=1; }
+      if(a.barkAnimTimer>0) a.barkAnimTimer=Math.max(0,a.barkAnimTimer-dt);
       a.catchupTimer -= dt;
       if(a.catchupTimer<=0){
         a.catchupTimer = rand(...CONFIG.AI_CATCHUP_INTERVAL);
@@ -1715,9 +1727,39 @@ function update(dt){
           audio.beep(660,0.12,'sine',0.18);
         }
       }
+      // Timer-based skill rolls — CPUs have no combo system to hang a real trigger
+      // off of, so each one just rerolls a random 4-7s window and, when it expires,
+      // fires its character's signature effect (turtle's only works while raining;
+      // cat has no active skill, matching its player-side passive-only design).
+      a.skillTimer -= dt;
+      if(a.skillTimer<=0 && a.dist<CONFIG.TRACK_LENGTH){
+        a.skillTimer = rand(...CONFIG.AI_SKILL_INTERVAL);
+        const sx=(a.dist-distance)*CONFIG.PIXELS_PER_METER + W*0.28, gY=H*0.72;
+        if(a.character==='rabbit'){
+          const leapDist = selectedDifficulty==='hard'? CONFIG.RABBIT_LEAP_HARD_DIST : CONFIG.RABBIT_LEAP_DIST;
+          a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + leapDist);
+          particles.spawnDust(sx, gY, 14, 1);
+        } else if(a.character==='turtle' && weather==='rain'){
+          const slideDist = selectedDifficulty==='hard'? CONFIG.TURTLE_RAIN_SLIDE_HARD_DIST
+            : selectedDifficulty==='normal'? CONFIG.TURTLE_RAIN_SLIDE_NORMAL_DIST : CONFIG.TURTLE_RAIN_SLIDE_DIST;
+          a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + slideDist);
+          particles.spawnSplash(sx, gY, 12);
+        } else if(a.character==='dog'){
+          const fullStop = selectedDifficulty!=='easy';
+          const slowMul = fullStop? CONFIG.DOG_BARK_HARD_SLOW_MUL : CONFIG.DOG_BARK_SLOW_MUL;
+          const slowDur = fullStop? CONFIG.DOG_BARK_HARD_DURATION : CONFIG.DOG_BARK_DURATION;
+          playerSlowMul = slowMul; playerSlowTimer = slowDur;
+          aiState.forEach(other=>{ if(other!==a){ other.slowMul=slowMul; other.slowTimer=slowDur; } });
+          particles.spawnDust(sx, gY, 10, -1);
+          a.barkAnimTimer = DOG_BARK_ANIM_DUR;
+          audio.bark();
+          flashSkillText('🐶 '+a.name+' barked! Everyone else slowed');
+        }
+      }
       if(a.dist<CONFIG.TRACK_LENGTH){
-        a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + a.pace*a.slowMul*dt);
-        a.runPhase = (a.runPhase||0) + (0.6+a.pace*a.slowMul*0.9)*dt*6;
+        const rainMul = weather==='rain'? CHARACTERS[a.character].rainImpulseMul : 1;
+        a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + a.pace*a.slowMul*rainMul*dt);
+        a.runPhase = (a.runPhase||0) + (0.6+a.pace*a.slowMul*rainMul*0.9)*dt*6;
         if(a.dist>=CONFIG.TRACK_LENGTH) a.finishTime = elapsed;
       }
     });
@@ -1791,8 +1833,10 @@ function render(){
     if(sx>-60 && sx<W+60){
       const aiSpeedRatio = clamp(a.pace/CONFIG.MAX_SPEED,0,1);
       const laneY = groundY + (i===0? -30 : 30);
+      const acs = CHARACTERS[a.character];
       drawRunner({ x:sx, groundY:laneY, phase:a.runPhase||0, speedRatio:aiSpeedRatio,
-        jersey:a.color, skin:'#e8b48a', scale:0.82, alpha:0.85, bib:String(i+2) });
+        jersey:acs.color, skin:acs.skin, scale:acs.scale, alpha:0.85, bib:String(i+2), animal:acs.animal });
+      if(a.barkAnimTimer>0) drawBarkRings(sx, laneY-70, DOG_BARK_ANIM_DUR-a.barkAnimTimer, DOG_BARK_ANIM_DUR);
       if(lightningStrikeAnimTimer>0){
         drawLightningBolt(sx, laneY-40, LIGHTNING_STRIKE_ANIM_DUR-lightningStrikeAnimTimer, LIGHTNING_STRIKE_ANIM_DUR);
       }
