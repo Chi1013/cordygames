@@ -736,6 +736,32 @@ function drawBarkRings(cx, cy, elapsed, dur){
     ctx.beginPath(); ctx.arc(cx,cy,10+p*70,0,6.283); ctx.stroke();
   }
 }
+// Jagged bolt striking down from off-screen onto a target — re-jittered every frame
+// (rather than a fixed shape) so it reads as flickering electricity, not a static line.
+function drawLightningBolt(x, yBottom, elapsed, dur){
+  const p = clamp(elapsed/dur, 0, 1);
+  const alpha = p<0.15 ? p/0.15 : clamp(1-(p-0.15)/0.85, 0, 1);
+  const yTop = -40;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  for(let pass=0; pass<2; pass++){
+    ctx.strokeStyle = pass===0? 'rgba(180,240,255,0.55)' : 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = pass===0? 12 : 4;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath();
+    let px=x, py=yTop;
+    ctx.moveTo(px,py);
+    const segs=7;
+    for(let i=1;i<=segs;i++){
+      const t=i/segs;
+      py = yTop + (yBottom-yTop)*t;
+      px = x + (Math.sin(t*11+x) + rand(-1,1)*0.5)*16*(1-t*0.5);
+      ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawStickman(o){
   const { x, groundY, phase, speedRatio, scale, alpha, jumpOffset } = o;
   const s = scale || 1;
@@ -1159,8 +1185,8 @@ let flashAlpha=0;
 let shakeMag=0, shakeTime=0, shakeDur=0.001;
 const RABBIT_LEAP_ANIM_DUR=0.45, DOG_BARK_ANIM_DUR=0.6;
 let rabbitLeapTimer=0, dogBarkTimer=0;
-const LIGHTNING_STRIKE_SLOW_DUR=1.5, LIGHTNING_STRIKE_COOLDOWN=4.0;
-let lightningCooldown=0;
+const LIGHTNING_STRIKE_SLOW_DUR=2.0, LIGHTNING_STRIKE_COOLDOWN=4.0, LIGHTNING_STRIKE_ANIM_DUR=0.4;
+let lightningCooldown=0, lightningStrikeAnimTimer=0;
 let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
 let selectedDifficulty = 'normal';
 let selectedCharacter = 'dog';
@@ -1314,7 +1340,7 @@ function flashScreen(a){ flashAlpha = Math.max(flashAlpha, a); }
 function enterReady(){
   state=STATE.READY;
   distance=0; speed=0; phase=0; lastSide=null; combo=0; elapsed=0;
-  lightningCooldown=0;
+  lightningCooldown=0; lightningStrikeAnimTimer=0;
   // finishTime here is only a fallback estimate for an AI that hasn't crossed the line
   // yet when results are shown; update()'s dist loop overwrites it with the real elapsed
   // time the moment that AI actually reaches TRACK_LENGTH, so dog-bark stuns / catchup
@@ -1413,6 +1439,7 @@ function triggerDogBark(){
 function triggerLightningStrike(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
   aiState.forEach(a=>{ a.slowMul=0; a.slowTimer=LIGHTNING_STRIKE_SLOW_DUR; });
+  lightningStrikeAnimTimer = LIGHTNING_STRIKE_ANIM_DUR;
   audio.thunder();
   addShake(14,0.4);
   flashScreen(0.85);
@@ -1420,7 +1447,7 @@ function triggerLightningStrike(){
     const sx=(a.dist-distance)*CONFIG.PIXELS_PER_METER + runnerScreenX;
     particles.spawnConfetti(sx, groundY-70, 16);
   });
-  flashSkillText('⚡ THUNDER STRIKE! All rivals frozen');
+  flashSkillText('⚡ THUNDER STRIKE! All rivals frozen for 2s');
 }
 function triggerStickmanWarp(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
@@ -1717,6 +1744,7 @@ function update(dt){
   if(rabbitLeapTimer>0) rabbitLeapTimer=Math.max(0,rabbitLeapTimer-dt);
   if(dogBarkTimer>0) dogBarkTimer=Math.max(0,dogBarkTimer-dt);
   if(lightningCooldown>0) lightningCooldown=Math.max(0,lightningCooldown-dt);
+  if(lightningStrikeAnimTimer>0) lightningStrikeAnimTimer=Math.max(0,lightningStrikeAnimTimer-dt);
   if(shakeTime>0){ shakeTime-=dt; if(shakeTime<0) shakeTime=0; }
   if(flashAlpha>0) flashAlpha=Math.max(0, flashAlpha-dt*2.6);
   flashEl.style.opacity = flashAlpha.toFixed(2);
@@ -1765,6 +1793,9 @@ function render(){
       const laneY = groundY + (i===0? -30 : 30);
       drawRunner({ x:sx, groundY:laneY, phase:a.runPhase||0, speedRatio:aiSpeedRatio,
         jersey:a.color, skin:'#e8b48a', scale:0.82, alpha:0.85, bib:String(i+2) });
+      if(lightningStrikeAnimTimer>0){
+        drawLightningBolt(sx, laneY-40, LIGHTNING_STRIKE_ANIM_DUR-lightningStrikeAnimTimer, LIGHTNING_STRIKE_ANIM_DUR);
+      }
     }
   });
 
