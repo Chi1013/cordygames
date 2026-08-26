@@ -285,9 +285,6 @@ const CONFIG = {
   DOG_BARK_HARD_SLOW_MUL: 0,
   DOG_BARK_HARD_DURATION: 1.4,
   STICKMAN_WARP_COMBO: 100,
-  LUCKY_WARP_COMBO: 80,
-  LUCKY_WARP_CHANCE: 0.3,
-  LUCKY_WARP_CHARACTERS: ['rabbit','turtle','dog'],
   TURTLE_RAIN_SLIDE_INTERVAL: 4,
   TURTLE_RAIN_SLIDE_DIST: 7,
   TURTLE_RAIN_SLIDE_NORMAL_DIST: 8,
@@ -329,14 +326,13 @@ const CHARACTERS = {
   stickman: { name:'STICKMAN', desc:'Very slow, frozen solid by rain — combo 100 warps straight to the finish', color:'#e64a19', skin:'#e8dcc8', animal:'stickman',
     impulseMul:0.4, maxSpeedMul:0.55, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0, rainDragMul:4.0 },
-  // Hidden/secret pick — not in the char-row, not in the RANDOM pool. Unlocked only by
-  // typing the right word on the menu screen (see the SHA-256 check near the keydown
-  // listener). Each stride covers huge ground (very high impulse/top speed); scale is
-  // the biggest in the roster, though nowhere near the ~9x a literal dog-vs-T-rex
-  // hip-height ratio would demand — that would blow out the whole scene's proportions,
-  // so this is "clearly the biggest" rather than "literally to real-world scale".
-  trex: { name:'T-REX', desc:'Secret pick — enormous stride, dominant in every stat', color:'#7a8a3a', skin:'#8fae4f', animal:'trex',
-    impulseMul:2.0, maxSpeedMul:1.3, stumbleMul:1.0, scale:2.0,
+  // Hidden/secret pick — not in the char-row, not in the RANDOM pool, never given to
+  // CPUs. Unlocked only by typing the right code on the menu screen (see the SHA-256
+  // check near the keydown listener). The strongest stats in the roster by far, plus
+  // a manual skill: press K mid-race to strike every other racer with lightning
+  // (see the 'K' handler near the keydown listener / triggerLightningStrike).
+  lightning: { name:'LIGHTNING MAN', desc:'Secret pick — explosive acceleration and top speed; press K to strike every rival with lightning', color:'#ffe066', skin:'#e8f4ff', animal:'lightning',
+    impulseMul:2.4, maxSpeedMul:1.5, stumbleMul:1.0, scale:1.05,
     rainImpulseMul:1.0, rainDragMul:1.0 },
 };
 
@@ -690,20 +686,19 @@ function drawAnimalFeatures(animal, hy, fur, phase){
   } else if(animal==='turtle'){
     ctx.strokeStyle=shadeColor(fur,-35); ctx.lineWidth=1.6;
     ctx.beginPath(); ctx.arc(HEAD_R*0.25, hy+HEAD_R*0.5, HEAD_R*0.35, 0.3, 2.5); ctx.stroke();
-  } else if(animal==='trex'){
-    ctx.fillStyle=shadeColor(fur,-10);
+  } else if(animal==='lightning'){
+    // jagged bolt spiking up off the head, like a lightning-shaped hairdo
+    const gy=ctx.createLinearGradient(0,hy-HEAD_R*2.6,0,hy-HEAD_R*0.8);
+    gy.addColorStop(0,'#fff9c4'); gy.addColorStop(1,'#ffcc00');
+    ctx.fillStyle=gy;
     ctx.beginPath();
-    ctx.moveTo(-HEAD_R*0.1, hy-HEAD_R*0.3);
-    ctx.quadraticCurveTo(HEAD_R*1.3, hy-HEAD_R*0.1, HEAD_R*1.6, hy+HEAD_R*0.35);
-    ctx.quadraticCurveTo(HEAD_R*1.2, hy+HEAD_R*0.55, HEAD_R*0.3, hy+HEAD_R*0.45);
+    ctx.moveTo(HEAD_R*0.15, hy-HEAD_R*0.9);
+    ctx.lineTo(HEAD_R*0.75, hy-HEAD_R*1.7);
+    ctx.lineTo(HEAD_R*0.3, hy-HEAD_R*1.6);
+    ctx.lineTo(HEAD_R*0.8, hy-HEAD_R*2.6);
+    ctx.lineTo(HEAD_R*0.1, hy-HEAD_R*1.55);
+    ctx.lineTo(HEAD_R*0.45, hy-HEAD_R*1.45);
     ctx.closePath(); ctx.fill();
-    ctx.fillStyle='#fff';
-    for(let i=0;i<3;i++){
-      const tx = HEAD_R*(0.5+i*0.35), ty = hy+HEAD_R*0.4;
-      ctx.beginPath();
-      ctx.moveTo(tx,ty); ctx.lineTo(tx+HEAD_R*0.12,ty); ctx.lineTo(tx+HEAD_R*0.06,ty+HEAD_R*0.22);
-      ctx.closePath(); ctx.fill();
-    }
   }
 }
 function drawShell(){
@@ -729,10 +724,6 @@ function drawTail(animal, phase, fur){
     const wag = Math.sin(phase*2)*0.4;
     ctx.strokeStyle = shadeColor(fur,-10); ctx.lineWidth=4; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(-9,-4); ctx.quadraticCurveTo(-22,-2+wag*8,-24,-16+wag*10); ctx.stroke();
-  } else if(animal==='trex'){
-    const sway = Math.sin(phase*1.2)*0.15;
-    ctx.strokeStyle = shadeColor(fur,-15); ctx.lineWidth=9; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(-9,-2); ctx.quadraticCurveTo(-26,-6+sway*10,-34,-2+sway*14); ctx.stroke();
   }
 }
 function drawBarkRings(cx, cy, elapsed, dur){
@@ -1168,6 +1159,8 @@ let flashAlpha=0;
 let shakeMag=0, shakeTime=0, shakeDur=0.001;
 const RABBIT_LEAP_ANIM_DUR=0.45, DOG_BARK_ANIM_DUR=0.6;
 let rabbitLeapTimer=0, dogBarkTimer=0;
+const LIGHTNING_STRIKE_SLOW_DUR=1.5, LIGHTNING_STRIKE_COOLDOWN=4.0;
+let lightningCooldown=0;
 let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
 let selectedDifficulty = 'normal';
 let selectedCharacter = 'dog';
@@ -1295,7 +1288,7 @@ document.querySelectorAll('.diff-btn').forEach(b=>{
 function selectCharacter(key){
   audio.ensure();
   audio.startBGM();
-  const animalKeys = Object.keys(CHARACTERS).filter(k=>k!=='trex'); // secret pick, never randomized in
+  const animalKeys = Object.keys(CHARACTERS).filter(k=>k!=='lightning'); // secret pick, never randomized in
   const resolved = key==='random'? animalKeys[Math.floor(Math.random()*animalKeys.length)] : key;
   selectedCharacter = resolved;
   document.querySelectorAll('.char-btn').forEach(b=>b.classList.toggle('selected', b.dataset.char===resolved));
@@ -1321,6 +1314,7 @@ function flashScreen(a){ flashAlpha = Math.max(flashAlpha, a); }
 function enterReady(){
   state=STATE.READY;
   distance=0; speed=0; phase=0; lastSide=null; combo=0; elapsed=0;
+  lightningCooldown=0;
   // finishTime here is only a fallback estimate for an AI that hasn't crossed the line
   // yet when results are shown; update()'s dist loop overwrites it with the real elapsed
   // time the moment that AI actually reaches TRACK_LENGTH, so dog-bark stuns / catchup
@@ -1415,6 +1409,18 @@ function triggerDogBark(){
   audio.bark();
   addShake(7,0.25);
   flashScreen(0.15);
+}
+function triggerLightningStrike(){
+  const runnerScreenX=W*0.28, groundY=H*0.72;
+  aiState.forEach(a=>{ a.slowMul=0; a.slowTimer=LIGHTNING_STRIKE_SLOW_DUR; });
+  audio.thunder();
+  addShake(14,0.4);
+  flashScreen(0.85);
+  aiState.forEach((a,i)=>{
+    const sx=(a.dist-distance)*CONFIG.PIXELS_PER_METER + runnerScreenX;
+    particles.spawnConfetti(sx, groundY-70, 16);
+  });
+  flashSkillText('⚡ THUNDER STRIKE! All rivals frozen');
 }
 function triggerStickmanWarp(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
@@ -1527,13 +1533,6 @@ function handleInput(side){
       if(selectedCharacter==='turtle' && weather==='rain' && combo>0 && combo%CONFIG.TURTLE_RAIN_SLIDE_INTERVAL===0){
         triggerTurtleSlide();
       }
-      // rabbit/turtle/dog get a coin-flip shot at an instant warp to the finish every
-      // time combo hits a multiple of 100 — stickman's warp is guaranteed, this is a
-      // rarer bonus for everyone else.
-      if(CONFIG.LUCKY_WARP_CHARACTERS.includes(selectedCharacter)
-        && combo>0 && combo%CONFIG.LUCKY_WARP_COMBO===0 && Math.random()<CONFIG.LUCKY_WARP_CHANCE){
-        triggerStickmanWarp();
-      }
     } else {
       combo=0;
       const effectivePenalty = 1-(1-CONFIG.STUMBLE_PENALTY)*cs.stumbleMul;
@@ -1554,18 +1553,18 @@ function handleInput(side){
 // 256-bit hash, guessing it back out of the source by brute force isn't computationally
 // feasible. A dictionary guess of the word itself is a separate, unrelated risk this
 // can't close off (that's true of any short, guessable secret regardless of hash).
-const SECRET_CODE_LEN=4, SECRET_CODE_HASH='0c898360b26284332cfdb30a491c558e1e82fafd6d2b9bda57eaf93df8fc46a8';
+const SECRET_CODE_LEN=5, SECRET_CODE_HASH='3d83f63d0a0b2b9ac5184c8090946d115e5b18468edc56ac3257a6ebd507f3c7';
 const DEFAULT_MENU_HINT='Pick a difficulty to start (or press any key / ESP32 button for NORMAL)';
 let secretKeyBuffer='';
 async function sha256Hex(str){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
-function unlockTrex(){
-  selectedCharacter='trex';
-  menuHintEl.textContent='🦖 Secret character unlocked! Pick a difficulty to start.';
-  clearTimeout(unlockTrex._t);
-  unlockTrex._t=setTimeout(()=>{ menuHintEl.textContent=DEFAULT_MENU_HINT; }, 3000);
+function unlockLightning(){
+  selectedCharacter='lightning';
+  menuHintEl.textContent='⚡ Secret character unlocked! Pick a difficulty to start.';
+  clearTimeout(unlockLightning._t);
+  unlockLightning._t=setTimeout(()=>{ menuHintEl.textContent=DEFAULT_MENU_HINT; }, 3000);
 }
 window.addEventListener('keydown',(e)=>{
   if(e.repeat) return;
@@ -1591,10 +1590,15 @@ window.addEventListener('keydown',(e)=>{
       secretKeyBuffer = (secretKeyBuffer + k).slice(-SECRET_CODE_LEN);
       if(secretKeyBuffer.length===SECRET_CODE_LEN){
         sha256Hex(secretKeyBuffer).then(hex=>{
-          if(hex===SECRET_CODE_HASH){ secretKeyBuffer=''; unlockTrex(); }
+          if(hex===SECRET_CODE_HASH){ secretKeyBuffer=''; unlockLightning(); }
         });
       }
     }
+  }
+
+  if(e.code==='KeyK' && state===STATE.RUNNING && selectedCharacter==='lightning' && lightningCooldown<=0){
+    lightningCooldown = LIGHTNING_STRIKE_COOLDOWN;
+    triggerLightningStrike();
   }
 });
 touchL.addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('L');});
@@ -1712,6 +1716,7 @@ function update(dt){
   particles.update(dt);
   if(rabbitLeapTimer>0) rabbitLeapTimer=Math.max(0,rabbitLeapTimer-dt);
   if(dogBarkTimer>0) dogBarkTimer=Math.max(0,dogBarkTimer-dt);
+  if(lightningCooldown>0) lightningCooldown=Math.max(0,lightningCooldown-dt);
   if(shakeTime>0){ shakeTime-=dt; if(shakeTime<0) shakeTime=0; }
   if(flashAlpha>0) flashAlpha=Math.max(0, flashAlpha-dt*2.6);
   flashEl.style.opacity = flashAlpha.toFixed(2);
