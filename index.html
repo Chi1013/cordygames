@@ -203,8 +203,8 @@
     <div class="medal-info" id="medalInfo"></div>
     <div class="char-row" id="charRow">
       <button class="char-btn" data-char="turtle">🐢 TURTLE<span>slow on land, fast &amp; slides in rain</span></button>
-      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — leaps at combo 20</span></button>
-      <button class="char-btn selected" data-char="dog">🐶 DOG<span>balanced — barks to slow rivals at combo 20</span></button>
+      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — leaps at combo 15</span></button>
+      <button class="char-btn selected" data-char="dog">🐶 DOG<span>balanced — barks to slow rivals at combo 15</span></button>
       <button class="char-btn" data-char="cat">🐱 CAT<span>fast start, uncapped combo, top speed = CPU × 1.8</span></button>
       <button class="char-btn" data-char="stickman">🔥 STICKMAN<span>???</span></button>
       <button class="char-btn" data-char="random">🎲 RANDOM<span>picks one for you</span></button>
@@ -214,7 +214,7 @@
       <button class="diff-btn selected" data-diff="normal">NORMAL</button>
       <button class="diff-btn" data-diff="hard">HARD</button>
     </div>
-    <div class="hint">Pick a difficulty to start (or press any key / ESP32 button for NORMAL)</div>
+    <div class="hint" id="menuHint">Pick a difficulty to start (or press any key / ESP32 button for NORMAL)</div>
     <button class="lb-btn" id="lbOpenBtn">🏆 LEADERBOARD</button>
   </div>
 
@@ -277,7 +277,7 @@ const CONFIG = {
   COMBO_MULT_CAP: 2.5,
   COMBO_BURST_EVERY: 10,
   COMBO_BURST_SPEED: 1.6,
-  SKILL_COMBO_INTERVAL: 20,
+  SKILL_COMBO_INTERVAL: 15,
   RABBIT_LEAP_DIST: 20,
   RABBIT_LEAP_HARD_DIST: 26,
   DOG_BARK_SLOW_MUL: 0.3,
@@ -317,10 +317,10 @@ const CHARACTERS = {
   turtle: { name:'TURTLE', desc:'Slow and low top speed on dry land, but speeds up and combos faster in the rain — slides 7m every 4 combo while it rains', color:'#2f9e56', skin:'#6fcf8e', animal:'turtle',
     impulseMul:0.45, maxSpeedMul:0.6, stumbleMul:0.5, scale:0.34,
     rainImpulseMul:2.5, rainDragMul:0.4, rainComboGrowthMul:2.5 },
-  rabbit: { name:'RABBIT', desc:'Explosive off the line, low top speed, hates rain — leaps forward every 30 combo', color:'#ff6f91', skin:'#f4efe6', animal:'rabbit',
+  rabbit: { name:'RABBIT', desc:'Explosive off the line, low top speed, hates rain — leaps forward every 15 combo', color:'#ff6f91', skin:'#f4efe6', animal:'rabbit',
     impulseMul:1.5, maxSpeedMul:0.8, stumbleMul:1.3, scale:0.55,
     rainImpulseMul:0.45, rainDragMul:2.0 },
-  dog:    { name:'DOG',    desc:'Middle-of-the-road in every stat — barks to slow rivals every 30 combo', color:'#c9822f', skin:'#c9955f', animal:'dog',
+  dog:    { name:'DOG',    desc:'Middle-of-the-road in every stat — barks to slow rivals every 15 combo', color:'#c9822f', skin:'#c9955f', animal:'dog',
     impulseMul:1.0, maxSpeedMul:1.0, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0.75, rainDragMul:1.35 },
   cat:    { name:'CAT',    desc:'Fast off the line, combo builds fast with no ceiling; top speed is 1.8x the CPU', color:'#7c5cff', skin:'#e79452', animal:'cat',
@@ -329,6 +329,15 @@ const CHARACTERS = {
   stickman: { name:'STICKMAN', desc:'Very slow, frozen solid by rain — combo 100 warps straight to the finish', color:'#e64a19', skin:'#e8dcc8', animal:'stickman',
     impulseMul:0.4, maxSpeedMul:0.55, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0, rainDragMul:4.0 },
+  // Hidden/secret pick — not in the char-row, not in the RANDOM pool. Unlocked only by
+  // typing the right word on the menu screen (see the SHA-256 check near the keydown
+  // listener). Each stride covers huge ground (very high impulse/top speed); scale is
+  // the biggest in the roster, though nowhere near the ~9x a literal dog-vs-T-rex
+  // hip-height ratio would demand — that would blow out the whole scene's proportions,
+  // so this is "clearly the biggest" rather than "literally to real-world scale".
+  trex: { name:'T-REX', desc:'Secret pick — enormous stride, dominant in every stat', color:'#7a8a3a', skin:'#8fae4f', animal:'trex',
+    impulseMul:2.0, maxSpeedMul:1.3, stumbleMul:1.0, scale:2.0,
+    rainImpulseMul:1.0, rainDragMul:1.0 },
 };
 
 /* ================= Canvas 初始化 ================= */
@@ -681,6 +690,20 @@ function drawAnimalFeatures(animal, hy, fur, phase){
   } else if(animal==='turtle'){
     ctx.strokeStyle=shadeColor(fur,-35); ctx.lineWidth=1.6;
     ctx.beginPath(); ctx.arc(HEAD_R*0.25, hy+HEAD_R*0.5, HEAD_R*0.35, 0.3, 2.5); ctx.stroke();
+  } else if(animal==='trex'){
+    ctx.fillStyle=shadeColor(fur,-10);
+    ctx.beginPath();
+    ctx.moveTo(-HEAD_R*0.1, hy-HEAD_R*0.3);
+    ctx.quadraticCurveTo(HEAD_R*1.3, hy-HEAD_R*0.1, HEAD_R*1.6, hy+HEAD_R*0.35);
+    ctx.quadraticCurveTo(HEAD_R*1.2, hy+HEAD_R*0.55, HEAD_R*0.3, hy+HEAD_R*0.45);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#fff';
+    for(let i=0;i<3;i++){
+      const tx = HEAD_R*(0.5+i*0.35), ty = hy+HEAD_R*0.4;
+      ctx.beginPath();
+      ctx.moveTo(tx,ty); ctx.lineTo(tx+HEAD_R*0.12,ty); ctx.lineTo(tx+HEAD_R*0.06,ty+HEAD_R*0.22);
+      ctx.closePath(); ctx.fill();
+    }
   }
 }
 function drawShell(){
@@ -706,6 +729,10 @@ function drawTail(animal, phase, fur){
     const wag = Math.sin(phase*2)*0.4;
     ctx.strokeStyle = shadeColor(fur,-10); ctx.lineWidth=4; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(-9,-4); ctx.quadraticCurveTo(-22,-2+wag*8,-24,-16+wag*10); ctx.stroke();
+  } else if(animal==='trex'){
+    const sway = Math.sin(phase*1.2)*0.15;
+    ctx.strokeStyle = shadeColor(fur,-15); ctx.lineWidth=9; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-9,-2); ctx.quadraticCurveTo(-26,-6+sway*10,-34,-2+sway*14); ctx.stroke();
   }
 }
 function drawBarkRings(cx, cy, elapsed, dur){
@@ -1173,6 +1200,7 @@ const flashEl=document.getElementById('flash');
 const resultsBackdropEl=document.getElementById('resultsBackdrop');
 const resultsCountdownEl=document.getElementById('resultsCountdown');
 const cheatWarningEl=document.getElementById('cheatWarning');
+const menuHintEl=document.getElementById('menuHint');
 const nameInput=document.getElementById('nameInput');
 const lbOpenBtn=document.getElementById('lbOpenBtn');
 const lbBackdrop=document.getElementById('lbBackdrop');
@@ -1267,7 +1295,7 @@ document.querySelectorAll('.diff-btn').forEach(b=>{
 function selectCharacter(key){
   audio.ensure();
   audio.startBGM();
-  const animalKeys = Object.keys(CHARACTERS);
+  const animalKeys = Object.keys(CHARACTERS).filter(k=>k!=='trex'); // secret pick, never randomized in
   const resolved = key==='random'? animalKeys[Math.floor(Math.random()*animalKeys.length)] : key;
   selectedCharacter = resolved;
   document.querySelectorAll('.char-btn').forEach(b=>b.classList.toggle('selected', b.dataset.char===resolved));
@@ -1520,6 +1548,25 @@ function handleInput(side){
   }
 }
 
+// Secret pick: typing the right word on the menu screen unlocks T-Rex. Only the
+// SHA-256 hash of the word is stored here (real cryptographic hash this time, not
+// the weak 32-bit one from the old stickman cheat that got brute-forced) — with a
+// 256-bit hash, guessing it back out of the source by brute force isn't computationally
+// feasible. A dictionary guess of the word itself is a separate, unrelated risk this
+// can't close off (that's true of any short, guessable secret regardless of hash).
+const SECRET_CODE_LEN=4, SECRET_CODE_HASH='8fbefc95205d5645b24823f75d1935b607af6fd3ff792b14d74db9241c43c884';
+const DEFAULT_MENU_HINT='Pick a difficulty to start (or press any key / ESP32 button for NORMAL)';
+let secretKeyBuffer='';
+async function sha256Hex(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function unlockTrex(){
+  selectedCharacter='trex';
+  menuHintEl.textContent='🦖 Secret character unlocked! Pick a difficulty to start.';
+  clearTimeout(unlockTrex._t);
+  unlockTrex._t=setTimeout(()=>{ menuHintEl.textContent=DEFAULT_MENU_HINT; }, 3000);
+}
 window.addEventListener('keydown',(e)=>{
   if(e.repeat) return;
   if(e.code==='Enter'||e.code==='NumpadEnter'){
@@ -1528,6 +1575,18 @@ window.addEventListener('keydown',(e)=>{
   }
   if(e.code==='ArrowLeft'||e.code==='KeyA') handleInput('L');
   else if(e.code==='ArrowRight'||e.code==='KeyD') handleInput('R');
+
+  if(state===STATE.MENU){
+    const k = e.key ? e.key.toLowerCase() : '';
+    if(k.length===1 && k>='a' && k<='z'){
+      secretKeyBuffer = (secretKeyBuffer + k).slice(-SECRET_CODE_LEN);
+      if(secretKeyBuffer.length===SECRET_CODE_LEN){
+        sha256Hex(secretKeyBuffer).then(hex=>{
+          if(hex===SECRET_CODE_HASH){ secretKeyBuffer=''; unlockTrex(); }
+        });
+      }
+    }
+  }
 });
 touchL.addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('L');});
 touchR.addEventListener('pointerdown',(e)=>{e.preventDefault(); handleInput('R');});
