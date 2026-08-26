@@ -1554,7 +1554,7 @@ function handleInput(side){
 // 256-bit hash, guessing it back out of the source by brute force isn't computationally
 // feasible. A dictionary guess of the word itself is a separate, unrelated risk this
 // can't close off (that's true of any short, guessable secret regardless of hash).
-const SECRET_CODE_LEN=4, SECRET_CODE_HASH='8fbefc95205d5645b24823f75d1935b607af6fd3ff792b14d74db9241c43c884';
+const SECRET_CODE_LEN=4, SECRET_CODE_HASH='0c898360b26284332cfdb30a491c558e1e82fafd6d2b9bda57eaf93df8fc46a8';
 const DEFAULT_MENU_HINT='Pick a difficulty to start (or press any key / ESP32 button for NORMAL)';
 let secretKeyBuffer='';
 async function sha256Hex(str){
@@ -1573,12 +1573,21 @@ window.addEventListener('keydown',(e)=>{
     if(state===STATE.FINISHED) leaveResults();
     return;
   }
-  if(e.code==='ArrowLeft'||e.code==='KeyA') handleInput('L');
-  else if(e.code==='ArrowRight'||e.code==='KeyD') handleInput('R');
+  // In the menu, letter keys (A/D) are reserved for typing the secret code instead of
+  // quick-starting the race — KeyD mapping to the R-input used to fire enterReady()
+  // on the very first letter, making it impossible to type anything. Arrow keys still
+  // quick-start normally since they're never part of a typed word.
+  if(state===STATE.MENU){
+    if(e.code==='ArrowLeft') handleInput('L');
+    else if(e.code==='ArrowRight') handleInput('R');
+  } else {
+    if(e.code==='ArrowLeft'||e.code==='KeyA') handleInput('L');
+    else if(e.code==='ArrowRight'||e.code==='KeyD') handleInput('R');
+  }
 
   if(state===STATE.MENU){
-    const k = e.key ? e.key.toLowerCase() : '';
-    if(k.length===1 && k>='a' && k<='z'){
+    const k = e.key || '';
+    if(k.length===1 && /[a-zA-Z]/.test(k)){
       secretKeyBuffer = (secretKeyBuffer + k).slice(-SECRET_CODE_LEN);
       if(secretKeyBuffer.length===SECRET_CODE_LEN){
         sha256Hex(secretKeyBuffer).then(hex=>{
