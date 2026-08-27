@@ -214,10 +214,10 @@
     <div class="name-row"><input type="text" id="nameInput" class="name-input" placeholder="YOUR NAME" maxlength="12" autocomplete="off"></div>
     <div class="medal-info" id="medalInfo"></div>
     <div class="char-row" id="charRow">
-      <button class="char-btn" data-char="turtle">🐢 TURTLE<span>slow on land, fast in rain — press K to slide 10m (10 uses, rain only)</span></button>
-      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — press K to leap 10m (10 uses)</span></button>
+      <button class="char-btn" data-char="turtle">🐢 TURTLE<span>slow on land, fast in rain — press K to slide 9m (10 uses, rain only)</span></button>
+      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — press K to leap 8m (10 uses)</span></button>
       <button class="char-btn selected" data-char="dog">🐶 DOG<span>balanced — press K to bark and slow rivals (10 uses)</span></button>
-      <button class="char-btn" data-char="cat">🐱 CAT<span>fast start, uncapped combo — press K to leap 10m (10 uses)</span></button>
+      <button class="char-btn" data-char="cat">🐱 CAT<span>fast start, uncapped combo — press K to dash forward 8m (10 uses)</span></button>
       <button class="char-btn" data-char="stickman">🔥 STICKMAN<span>???</span></button>
       <button class="char-btn" data-char="random">🎲 RANDOM<span>picks one for you</span></button>
     </div>
@@ -295,13 +295,13 @@ const CONFIG = {
   COMBO_BURST_SPEED: 1.6,
   SKILL_USE_LIMIT: 10,
   STICKMAN_WARP_COMBO: 80,
-  RABBIT_LEAP_DIST: 10,
-  CAT_LEAP_DIST: 10,
+  RABBIT_LEAP_DIST: 8,
+  CAT_LEAP_DIST: 8,
   DOG_BARK_SLOW_MUL: 0.3,
   DOG_BARK_DURATION: 1.1,
   DOG_BARK_HARD_SLOW_MUL: 0,
   DOG_BARK_HARD_DURATION: 1.4,
-  TURTLE_RAIN_SLIDE_DIST: 10,
+  TURTLE_RAIN_SLIDE_DIST: 9,
   AI_CATCHUP_DIST: 5,
   AI_CATCHUP_INTERVAL: [4, 8],
   // CPUs get a random character each race for looks + passive rain effects. No
@@ -330,16 +330,16 @@ const AI_META = [
 ];
 
 const CHARACTERS = {
-  turtle: { name:'TURTLE', desc:'Slow and low top speed on dry land, but speeds up in the rain — press K while raining to slide forward 10m (10 uses)', color:'#2f9e56', skin:'#6fcf8e', animal:'turtle',
+  turtle: { name:'TURTLE', desc:'Slow and low top speed on dry land, but speeds up in the rain — press K while raining to slide forward 9m (10 uses)', color:'#2f9e56', skin:'#6fcf8e', animal:'turtle',
     impulseMul:0.45, maxSpeedMul:0.6, stumbleMul:0.5, scale:0.34,
     rainImpulseMul:2.5, rainDragMul:0.4, rainComboGrowthMul:2.5 },
-  rabbit: { name:'RABBIT', desc:'Explosive off the line, low top speed, hates rain — press K to leap forward 10m (10 uses)', color:'#ff6f91', skin:'#f4efe6', animal:'rabbit',
+  rabbit: { name:'RABBIT', desc:'Explosive off the line, low top speed, hates rain — press K to leap forward 8m (10 uses)', color:'#ff6f91', skin:'#f4efe6', animal:'rabbit',
     impulseMul:1.5, maxSpeedMul:0.8, stumbleMul:1.3, scale:0.55,
     rainImpulseMul:0.45, rainDragMul:2.0 },
   dog:    { name:'DOG',    desc:'Middle-of-the-road in every stat — press K to bark and slow rivals (10 uses)', color:'#c9822f', skin:'#c9955f', animal:'dog',
     impulseMul:1.0, maxSpeedMul:1.0, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0.75, rainDragMul:1.35 },
-  cat:    { name:'CAT',    desc:'Fast off the line, combo builds fast with no ceiling, top speed is 1.8x the CPU — press K to leap forward 10m (10 uses)', color:'#7c5cff', skin:'#e79452', animal:'cat',
+  cat:    { name:'CAT',    desc:'Fast off the line, combo builds fast with no ceiling, top speed is 1.8x the CPU — press K to dash forward 8m (10 uses)', color:'#7c5cff', skin:'#e79452', animal:'cat',
     impulseMul:1.1, maxSpeedMul:1.0, stumbleMul:0.85, scale:0.62, matchCpuSpeed:true, matchCpuSpeedBonus:1.8,
     rainImpulseMul:0.45, rainDragMul:2.0, comboCap:Infinity, comboGrowth:0.22 },
   stickman: { name:'STICKMAN', desc:'Very slow, frozen solid by rain — combo 80 warps straight to the finish', color:'#e64a19', skin:'#e8dcc8', animal:'stickman',
@@ -1464,10 +1464,9 @@ function triggerDogBark(){
   addShake(7,0.25);
   flashScreen(0.15);
 }
-function triggerCatLeap(){
+function triggerCatDash(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
   distance = Math.min(CONFIG.TRACK_LENGTH, distance + CONFIG.CAT_LEAP_DIST);
-  rabbitLeapTimer = RABBIT_LEAP_ANIM_DUR;
   audio.leap();
   addShake(9,0.3);
   flashScreen(0.22);
@@ -1663,8 +1662,8 @@ window.addEventListener('keydown',(e)=>{
       flashSkillText('🐇 Leap! '+skillUsesLeft+' left');
     } else if(selectedCharacter==='cat' && skillUsesLeft>0){
       skillUsesLeft--;
-      triggerCatLeap();
-      flashSkillText('🐱 Leap! '+skillUsesLeft+' left');
+      triggerCatDash();
+      flashSkillText('🐱 Dash! '+skillUsesLeft+' left');
     } else if(selectedCharacter==='dog' && skillUsesLeft>0){
       skillUsesLeft--;
       triggerDogBark();
