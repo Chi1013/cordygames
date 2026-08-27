@@ -214,10 +214,10 @@
     <div class="name-row"><input type="text" id="nameInput" class="name-input" placeholder="YOUR NAME" maxlength="12" autocomplete="off"></div>
     <div class="medal-info" id="medalInfo"></div>
     <div class="char-row" id="charRow">
-      <button class="char-btn" data-char="turtle">🐢 TURTLE<span>slow on land, fast in rain — press K to slide (5 uses, rain only)</span></button>
-      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — press K to leap (10 uses)</span></button>
+      <button class="char-btn" data-char="turtle">🐢 TURTLE<span>slow on land, fast in rain — press K to slide 10m (10 uses, rain only)</span></button>
+      <button class="char-btn" data-char="rabbit">🐇 RABBIT<span>fast start, low top speed — press K to leap 10m (10 uses)</span></button>
       <button class="char-btn selected" data-char="dog">🐶 DOG<span>balanced — press K to bark and slow rivals (10 uses)</span></button>
-      <button class="char-btn" data-char="cat">🐱 CAT<span>fast start, uncapped combo — press K to sprint (10 uses)</span></button>
+      <button class="char-btn" data-char="cat">🐱 CAT<span>fast start, uncapped combo — press K to leap 10m (10 uses)</span></button>
       <button class="char-btn" data-char="stickman">🔥 STICKMAN<span>???</span></button>
       <button class="char-btn" data-char="random">🎲 RANDOM<span>picks one for you</span></button>
     </div>
@@ -295,18 +295,13 @@ const CONFIG = {
   COMBO_BURST_SPEED: 1.6,
   SKILL_USE_LIMIT: 10,
   STICKMAN_WARP_COMBO: 80,
-  RABBIT_LEAP_DIST: 7,
-  RABBIT_LEAP_NORMAL_DIST: 8,
-  RABBIT_LEAP_HARD_DIST: 9,
-  CAT_SPRINT_MUL: 1.4,
-  CAT_SPRINT_DURATION: 2.0,
+  RABBIT_LEAP_DIST: 10,
+  CAT_LEAP_DIST: 10,
   DOG_BARK_SLOW_MUL: 0.3,
   DOG_BARK_DURATION: 1.1,
   DOG_BARK_HARD_SLOW_MUL: 0,
   DOG_BARK_HARD_DURATION: 1.4,
-  TURTLE_RAIN_SLIDE_DIST: 7,
-  TURTLE_RAIN_SLIDE_NORMAL_DIST: 8,
-  TURTLE_RAIN_SLIDE_HARD_DIST: 9,
+  TURTLE_RAIN_SLIDE_DIST: 10,
   AI_CATCHUP_DIST: 5,
   AI_CATCHUP_INTERVAL: [4, 8],
   // CPUs get a random character each race for looks + passive rain effects. No
@@ -335,16 +330,16 @@ const AI_META = [
 ];
 
 const CHARACTERS = {
-  turtle: { name:'TURTLE', desc:'Slow and low top speed on dry land, but speeds up in the rain — press K while raining to slide forward (10 uses)', color:'#2f9e56', skin:'#6fcf8e', animal:'turtle',
+  turtle: { name:'TURTLE', desc:'Slow and low top speed on dry land, but speeds up in the rain — press K while raining to slide forward 10m (10 uses)', color:'#2f9e56', skin:'#6fcf8e', animal:'turtle',
     impulseMul:0.45, maxSpeedMul:0.6, stumbleMul:0.5, scale:0.34,
     rainImpulseMul:2.5, rainDragMul:0.4, rainComboGrowthMul:2.5 },
-  rabbit: { name:'RABBIT', desc:'Explosive off the line, low top speed, hates rain — press K to leap forward (10 uses)', color:'#ff6f91', skin:'#f4efe6', animal:'rabbit',
+  rabbit: { name:'RABBIT', desc:'Explosive off the line, low top speed, hates rain — press K to leap forward 10m (10 uses)', color:'#ff6f91', skin:'#f4efe6', animal:'rabbit',
     impulseMul:1.5, maxSpeedMul:0.8, stumbleMul:1.3, scale:0.55,
     rainImpulseMul:0.45, rainDragMul:2.0 },
   dog:    { name:'DOG',    desc:'Middle-of-the-road in every stat — press K to bark and slow rivals (10 uses)', color:'#c9822f', skin:'#c9955f', animal:'dog',
     impulseMul:1.0, maxSpeedMul:1.0, stumbleMul:1.0, scale:1.0,
     rainImpulseMul:0.75, rainDragMul:1.35 },
-  cat:    { name:'CAT',    desc:'Fast off the line, combo builds fast with no ceiling, top speed is 1.8x the CPU — press K for a 2s sprint burst (10 uses)', color:'#7c5cff', skin:'#e79452', animal:'cat',
+  cat:    { name:'CAT',    desc:'Fast off the line, combo builds fast with no ceiling, top speed is 1.8x the CPU — press K to leap forward 10m (10 uses)', color:'#7c5cff', skin:'#e79452', animal:'cat',
     impulseMul:1.1, maxSpeedMul:1.0, stumbleMul:0.85, scale:0.62, matchCpuSpeed:true, matchCpuSpeedBonus:1.8,
     rainImpulseMul:0.45, rainDragMul:2.0, comboCap:Infinity, comboGrowth:0.22 },
   stickman: { name:'STICKMAN', desc:'Very slow, frozen solid by rain — combo 80 warps straight to the finish', color:'#e64a19', skin:'#e8dcc8', animal:'stickman',
@@ -1208,7 +1203,7 @@ let readyTimer=0, countdownValue=3, goFlashTimer=0, falseStartTimer=0;
 let flashAlpha=0;
 let shakeMag=0, shakeTime=0, shakeDur=0.001;
 const RABBIT_LEAP_ANIM_DUR=0.45, DOG_BARK_ANIM_DUR=0.6;
-let rabbitLeapTimer=0, dogBarkTimer=0, catSprintTimer=0;
+let rabbitLeapTimer=0, dogBarkTimer=0;
 let skillUsesLeft=0;
 const LIGHTNING_STRIKE_SLOW_DUR=2.0, LIGHTNING_STRIKE_COOLDOWN=0, LIGHTNING_STRIKE_ANIM_DUR=0.4;
 let lightningCooldown=0, lightningStrikeAnimTimer=0;
@@ -1371,7 +1366,6 @@ function enterReady(){
   state=STATE.READY;
   distance=0; speed=0; phase=0; lastSide=null; combo=0; elapsed=0;
   playerFinished=false; playerFinishTime=0;
-  catSprintTimer=0;
   skillUsesLeft=CONFIG.SKILL_USE_LIMIT;
   playerSlowMul=1; playerSlowTimer=0;
   lightningCooldown=0; lightningStrikeAnimTimer=0;
@@ -1424,7 +1418,6 @@ function effectiveMaxSpeedMul(cs){
   let mul;
   if(cs.matchCpuSpeed) mul = (DIFFICULTIES[selectedDifficulty].paces[0] / CONFIG.MAX_SPEED) * (cs.matchCpuSpeedBonus||1);
   else mul = cs.maxSpeedMul;
-  if(selectedCharacter==='cat' && catSprintTimer>0) mul *= CONFIG.CAT_SPRINT_MUL;
   return mul;
 }
 function triggerComboBurst(){
@@ -1446,10 +1439,7 @@ function flashSkillText(msg){
 }
 function triggerTurtleSlide(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
-  const slideDist = selectedDifficulty==='hard'? CONFIG.TURTLE_RAIN_SLIDE_HARD_DIST
-    : selectedDifficulty==='normal'? CONFIG.TURTLE_RAIN_SLIDE_NORMAL_DIST
-    : CONFIG.TURTLE_RAIN_SLIDE_DIST;
-  distance = Math.min(CONFIG.TRACK_LENGTH, distance + slideDist);
+  distance = Math.min(CONFIG.TRACK_LENGTH, distance + CONFIG.TURTLE_RAIN_SLIDE_DIST);
   audio.splash();
   addShake(8,0.3);
   flashScreen(0.18);
@@ -1457,10 +1447,7 @@ function triggerTurtleSlide(){
 }
 function triggerRabbitLeap(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
-  const leapDist = selectedDifficulty==='hard'? CONFIG.RABBIT_LEAP_HARD_DIST
-    : selectedDifficulty==='normal'? CONFIG.RABBIT_LEAP_NORMAL_DIST
-    : CONFIG.RABBIT_LEAP_DIST;
-  distance = Math.min(CONFIG.TRACK_LENGTH, distance + leapDist);
+  distance = Math.min(CONFIG.TRACK_LENGTH, distance + CONFIG.RABBIT_LEAP_DIST);
   rabbitLeapTimer = RABBIT_LEAP_ANIM_DUR;
   audio.leap();
   addShake(9,0.3);
@@ -1477,13 +1464,14 @@ function triggerDogBark(){
   addShake(7,0.25);
   flashScreen(0.15);
 }
-function triggerCatSprint(){
+function triggerCatLeap(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
-  catSprintTimer = CONFIG.CAT_SPRINT_DURATION;
+  distance = Math.min(CONFIG.TRACK_LENGTH, distance + CONFIG.CAT_LEAP_DIST);
+  rabbitLeapTimer = RABBIT_LEAP_ANIM_DUR;
   audio.leap();
-  addShake(5,0.2);
-  flashScreen(0.15);
-  particles.spawnDust(runnerScreenX, groundY, 10, 1);
+  addShake(9,0.3);
+  flashScreen(0.22);
+  particles.spawnDust(runnerScreenX, groundY, 16, 1);
 }
 function triggerLightningStrike(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
@@ -1675,8 +1663,8 @@ window.addEventListener('keydown',(e)=>{
       flashSkillText('🐇 Leap! '+skillUsesLeft+' left');
     } else if(selectedCharacter==='cat' && skillUsesLeft>0){
       skillUsesLeft--;
-      triggerCatSprint();
-      flashSkillText('🐱 Sprint! '+skillUsesLeft+' left');
+      triggerCatLeap();
+      flashSkillText('🐱 Leap! '+skillUsesLeft+' left');
     } else if(selectedCharacter==='dog' && skillUsesLeft>0){
       skillUsesLeft--;
       triggerDogBark();
@@ -1793,25 +1781,23 @@ function update(dt){
       }
       // Timer-based skill rolls — CPUs have no combo system to hang a real trigger
       // off of, so each one just rerolls a random 4-7s window and, when it expires,
-      // fires its character's signature effect (turtle's only works while raining;
-      // cat has no active skill, matching its player-side passive-only design).
+      // fires its character's signature effect (turtle's only works while raining).
       a.skillTimer -= dt;
       if(a.skillTimer<=0 && a.dist<CONFIG.TRACK_LENGTH && a.skillUsesLeft>0){
         a.skillTimer = rand(...CONFIG.AI_SKILL_INTERVAL);
         const sx=(a.dist-distance)*CONFIG.PIXELS_PER_METER + W*0.28, gY=H*0.72;
         if(a.character==='rabbit'){
-          const leapDist = selectedDifficulty==='hard'? CONFIG.RABBIT_LEAP_HARD_DIST
-            : selectedDifficulty==='normal'? CONFIG.RABBIT_LEAP_NORMAL_DIST
-            : CONFIG.RABBIT_LEAP_DIST;
-          a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + leapDist);
+          a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + CONFIG.RABBIT_LEAP_DIST);
           a.skillUsesLeft--;
           particles.spawnDust(sx, gY, 14, 1);
         } else if(a.character==='turtle' && weather==='rain'){
-          const slideDist = selectedDifficulty==='hard'? CONFIG.TURTLE_RAIN_SLIDE_HARD_DIST
-            : selectedDifficulty==='normal'? CONFIG.TURTLE_RAIN_SLIDE_NORMAL_DIST : CONFIG.TURTLE_RAIN_SLIDE_DIST;
-          a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + slideDist);
+          a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + CONFIG.TURTLE_RAIN_SLIDE_DIST);
           a.skillUsesLeft--;
           particles.spawnSplash(sx, gY, 12);
+        } else if(a.character==='cat'){
+          a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + CONFIG.CAT_LEAP_DIST);
+          a.skillUsesLeft--;
+          particles.spawnDust(sx, gY, 14, 1);
         } else if(a.character==='dog'){
           const fullStop = selectedDifficulty!=='easy';
           const slowMul = fullStop? CONFIG.DOG_BARK_HARD_SLOW_MUL : CONFIG.DOG_BARK_SLOW_MUL;
@@ -1862,7 +1848,6 @@ function update(dt){
   particles.update(dt);
   if(rabbitLeapTimer>0) rabbitLeapTimer=Math.max(0,rabbitLeapTimer-dt);
   if(dogBarkTimer>0) dogBarkTimer=Math.max(0,dogBarkTimer-dt);
-  if(catSprintTimer>0) catSprintTimer=Math.max(0,catSprintTimer-dt);
   if(lightningCooldown>0) lightningCooldown=Math.max(0,lightningCooldown-dt);
   if(lightningStrikeAnimTimer>0) lightningStrikeAnimTimer=Math.max(0,lightningStrikeAnimTimer-dt);
   if(shakeTime>0){ shakeTime-=dt; if(shakeTime<0) shakeTime=0; }
