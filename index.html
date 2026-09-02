@@ -353,6 +353,14 @@ const CHARACTERS = {
   lightning: { name:'LIGHTNING MAN', desc:'Secret pick — explosive acceleration and top speed; press K to strike every rival with lightning, unlimited uses', color:'#ffe066', skin:'#e8f4ff', animal:'lightning',
     impulseMul:20.0, maxSpeedMul:8.0, stumbleMul:1.0, scale:1.05,
     rainImpulseMul:1.0, rainDragMul:1.0 },
+  // Hidden/secret pick — same rules as lightning: not in char-row, not in RANDOM,
+  // excluded from AI_CHARACTER_POOL. Unlocked by a different typed code (see the
+  // SHA-256 check near the keydown listener). Same movement stats as lightning.
+  // Skill: press K to set every rival on fire — they burn and stumble backwards
+  // for 2s (see triggerFlameBurn). Unlimited uses, same as lightning.
+  flame: { name:'FLAME HERO', desc:'Secret pick — explosive acceleration and top speed, same as lightning; press K to set every rival on fire and send them stumbling backwards, unlimited uses', color:'#ff5722', skin:'#ffccbc', animal:'flame',
+    impulseMul:20.0, maxSpeedMul:8.0, stumbleMul:1.0, scale:1.05,
+    rainImpulseMul:0.5, rainDragMul:1.8 },
 };
 
 /* ================= Canvas 初始化 ================= */
@@ -516,6 +524,20 @@ class AudioEngine{
     osc.connect(g2); g2.connect(this.ctx.destination);
     this._env(g2,t,0.01,0.06,0.2,0.25);
     osc.start(t); osc.stop(t+0.3);
+  }
+  fire(){
+    this.ensure(); const t=this.ctx.currentTime;
+    const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf;
+    const filt=this.ctx.createBiquadFilter(); filt.type='bandpass'; filt.Q.value=0.8;
+    filt.frequency.setValueAtTime(2200,t);
+    filt.frequency.exponentialRampToValueAtTime(500,t+0.4);
+    const gain=this.ctx.createGain();
+    src.connect(filt); filt.connect(gain); gain.connect(this.ctx.destination);
+    this._env(gain,t,0.02,0.15,0.35,0.4);
+    src.start(t); src.stop(t+0.5);
+    for(let i=0;i<4;i++){
+      setTimeout(()=>this.beep(1400+Math.random()*800,0.03,'square',0.08), (i*0.1+Math.random()*0.05)*1000);
+    }
   }
   warp(){
     this.ensure(); const t=this.ctx.currentTime;
@@ -717,6 +739,18 @@ function drawAnimalFeatures(animal, hy, fur, phase){
     ctx.lineTo(HEAD_R*0.1, hy-HEAD_R*1.55);
     ctx.lineTo(HEAD_R*0.45, hy-HEAD_R*1.45);
     ctx.closePath(); ctx.fill();
+  } else if(animal==='flame'){
+    const gf=ctx.createLinearGradient(0,hy-HEAD_R*2.4,0,hy-HEAD_R*0.7);
+    gf.addColorStop(0,'#ffeb3b'); gf.addColorStop(0.5,'#ff9800'); gf.addColorStop(1,'#e64a19');
+    ctx.fillStyle=gf;
+    ctx.beginPath();
+    ctx.moveTo(-HEAD_R*0.5, hy-HEAD_R*0.7);
+    ctx.quadraticCurveTo(-HEAD_R*0.7, hy-HEAD_R*1.5, -HEAD_R*0.2, hy-HEAD_R*1.7);
+    ctx.quadraticCurveTo(-HEAD_R*0.35, hy-HEAD_R*1.2, 0, hy-HEAD_R*1.3);
+    ctx.quadraticCurveTo(HEAD_R*0.05, hy-HEAD_R*2.1, HEAD_R*0.45, hy-HEAD_R*2.4);
+    ctx.quadraticCurveTo(HEAD_R*0.25, hy-HEAD_R*1.5, HEAD_R*0.55, hy-HEAD_R*1.5);
+    ctx.quadraticCurveTo(HEAD_R*0.4, hy-HEAD_R*1.0, HEAD_R*0.5, hy-HEAD_R*0.7);
+    ctx.closePath(); ctx.fill();
   }
 }
 function drawShell(){
@@ -752,6 +786,23 @@ function drawBarkRings(cx, cy, elapsed, dur){
     ctx.strokeStyle='rgba(255,255,255,'+((1-p)*0.75).toFixed(2)+')';
     ctx.lineWidth=3;
     ctx.beginPath(); ctx.arc(cx,cy,10+p*70,0,6.283); ctx.stroke();
+  }
+}
+// Flickering flame licks rising off a burning character — re-jittered every frame
+// (like the lightning bolt) so it reads as fire, not a static decal.
+function drawFireOnCharacter(cx, cy, elapsed, dur){
+  const p = clamp(elapsed/dur, 0, 1);
+  const alpha = p<0.15? p/0.15 : clamp(1-(p-0.7)/0.3, 0, 1);
+  for(let i=0;i<5;i++){
+    const fx = cx + Math.sin(elapsed*9+i*2)*6;
+    const fy = cy - i*7 - Math.abs(Math.sin(elapsed*13+i))*4;
+    const r = Math.max(1, 7-i*1.1);
+    const g = ctx.createRadialGradient(fx,fy,0,fx,fy,r);
+    g.addColorStop(0,'rgba(255,235,59,'+(alpha*0.9).toFixed(2)+')');
+    g.addColorStop(0.5,'rgba(255,152,0,'+(alpha*0.7).toFixed(2)+')');
+    g.addColorStop(1,'rgba(230,74,25,0)');
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(fx,fy,r,0,6.283); ctx.fill();
   }
 }
 // Jagged bolt striking down from off-screen onto a target — re-jittered every frame
@@ -1207,6 +1258,8 @@ let rabbitLeapTimer=0, dogBarkTimer=0;
 let skillUsesLeft=0;
 const LIGHTNING_STRIKE_SLOW_DUR=2.0, LIGHTNING_STRIKE_COOLDOWN=0, LIGHTNING_STRIKE_ANIM_DUR=0.4;
 let lightningCooldown=0, lightningStrikeAnimTimer=0;
+const FLAME_BURN_SLOW_DUR=2.0, FLAME_BURN_COOLDOWN=0;
+let flameCooldown=0;
 let playerSlowMul=1, playerSlowTimer=0; // set by a CPU dog's bark skill
 let bestTime = parseFloat(localStorage.getItem('sprint_best')||'') || null;
 let selectedDifficulty = 'normal';
@@ -1273,7 +1326,7 @@ function submitScore(time){
     body: JSON.stringify({ name, time, difficulty:selectedDifficulty, character:selectedCharacter }),
   }).then(r=>r.json()).then(data=>{
     if(data && data.ok===false && data.error==='cheat_detected' && cheatWarningEl){
-      cheatWarningEl.textContent = '⚠️ Time flagged as implausible — not added to the leaderboard.';
+      cheatWarningEl.textContent = '⚠️ Please do not use cheats to challenge this game — score not added to the leaderboard.';
     }
   }).catch(()=>{});
 }
@@ -1339,7 +1392,7 @@ document.querySelectorAll('.diff-btn').forEach(b=>{
 function selectCharacter(key){
   audio.ensure();
   audio.startBGM();
-  const animalKeys = Object.keys(CHARACTERS).filter(k=>k!=='lightning'); // secret pick, never randomized in
+  const animalKeys = Object.keys(CHARACTERS).filter(k=>k!=='lightning'&&k!=='flame'); // secret picks, never randomized in
   const resolved = key==='random'? animalKeys[Math.floor(Math.random()*animalKeys.length)] : key;
   selectedCharacter = resolved;
   document.querySelectorAll('.char-btn').forEach(b=>b.classList.toggle('selected', b.dataset.char===resolved));
@@ -1369,6 +1422,7 @@ function enterReady(){
   skillUsesLeft=CONFIG.SKILL_USE_LIMIT;
   playerSlowMul=1; playerSlowTimer=0;
   lightningCooldown=0; lightningStrikeAnimTimer=0;
+  flameCooldown=0;
   // finishTime here is only a fallback estimate for an AI that hasn't crossed the line
   // yet when results are shown; update()'s dist loop overwrites it with the real elapsed
   // time the moment that AI actually reaches TRACK_LENGTH, so dog-bark stuns / catchup
@@ -1376,7 +1430,7 @@ function enterReady(){
   aiState.forEach(a=>{ a.dist=0; a.runPhase=0; a.finishTime = CONFIG.TRACK_LENGTH/a.pace; a.slowMul=1; a.slowTimer=0;
     a.catchupTimer = rand(...CONFIG.AI_CATCHUP_INTERVAL);
     a.character = CONFIG.AI_CHARACTER_POOL[Math.floor(Math.random()*CONFIG.AI_CHARACTER_POOL.length)];
-    a.skillTimer = rand(...CONFIG.AI_SKILL_INTERVAL); a.skillUsesLeft = CONFIG.SKILL_USE_LIMIT; a.barkAnimTimer=0; });
+    a.skillTimer = rand(...CONFIG.AI_SKILL_INTERVAL); a.skillUsesLeft = CONFIG.SKILL_USE_LIMIT; a.barkAnimTimer=0; a.burnTimer=0; });
   readyTimer=0;
   countdownValue=3;
   weather='clear';
@@ -1484,6 +1538,18 @@ function triggerLightningStrike(){
     particles.spawnConfetti(sx, groundY-70, 16);
   });
   flashSkillText('⚡ THUNDER STRIKE! All rivals frozen for 2s');
+}
+function triggerFlameBurn(){
+  const runnerScreenX=W*0.28, groundY=H*0.72;
+  aiState.forEach(a=>{ a.slowMul=-1; a.slowTimer=FLAME_BURN_SLOW_DUR; a.burnTimer=FLAME_BURN_SLOW_DUR; });
+  audio.fire();
+  addShake(12,0.4);
+  flashScreen(0.6);
+  aiState.forEach(a=>{
+    const sx=(a.dist-distance)*CONFIG.PIXELS_PER_METER + runnerScreenX;
+    particles.spawnDust(sx, groundY, 14, -1);
+  });
+  flashSkillText('🔥 ON FIRE! Rivals stumbling backwards for 2s');
 }
 function triggerStickmanWarp(){
   const runnerScreenX=W*0.28, groundY=H*0.72;
@@ -1609,19 +1675,29 @@ function handleInput(side){
 // 256-bit hash, guessing it back out of the source by brute force isn't computationally
 // feasible. A dictionary guess of the word itself is a separate, unrelated risk this
 // can't close off (that's true of any short, guessable secret regardless of hash).
-const SECRET_CODE_LEN=5, SECRET_CODE_HASH='3d83f63d0a0b2b9ac5184c8090946d115e5b18468edc56ac3257a6ebd507f3c7';
+const SECRET_CODE_LEN=5;
 const DEFAULT_MENU_HINT='Pick a difficulty to start (or press any key / ESP32 button for NORMAL)';
 let secretKeyBuffer='';
 async function sha256Hex(str){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
-function unlockLightning(){
-  selectedCharacter='lightning';
-  menuHintEl.textContent='⚡ Secret character unlocked! Pick a difficulty to start.';
-  clearTimeout(unlockLightning._t);
-  unlockLightning._t=setTimeout(()=>{ menuHintEl.textContent=DEFAULT_MENU_HINT; }, 3000);
+function unlockCharacter(key, emoji){
+  selectedCharacter=key;
+  menuHintEl.textContent=emoji+' Secret character unlocked! Pick a difficulty to start.';
+  clearTimeout(unlockCharacter._t);
+  unlockCharacter._t=setTimeout(()=>{ menuHintEl.textContent=DEFAULT_MENU_HINT; }, 3000);
 }
+// Each entry is {hash, key, emoji}. Only the SHA-256 hash of each typed word is stored
+// here (real cryptographic hash, not the weak 32-bit one from the old stickman cheat
+// that got brute-forced) — with a 256-bit hash, guessing it back out of the source by
+// brute force isn't computationally feasible. A dictionary guess of the word itself is
+// a separate, unrelated risk this can't close off (true of any short secret regardless
+// of hash) — never put the plaintext word itself here or in a commit message.
+const SECRET_CODES = [
+  { hash:'3d83f63d0a0b2b9ac5184c8090946d115e5b18468edc56ac3257a6ebd507f3c7', key:'lightning', emoji:'⚡' },
+  { hash:'12e171a3f85eb5f6706ec53afd8a5204f2311ce8aae16f31fc4f084a66bbd0a8', key:'flame', emoji:'🔥' },
+];
 window.addEventListener('keydown',(e)=>{
   if(e.repeat) return;
   if(e.code==='Enter'||e.code==='NumpadEnter'){
@@ -1646,7 +1722,8 @@ window.addEventListener('keydown',(e)=>{
       secretKeyBuffer = (secretKeyBuffer + k).slice(-SECRET_CODE_LEN);
       if(secretKeyBuffer.length===SECRET_CODE_LEN){
         sha256Hex(secretKeyBuffer).then(hex=>{
-          if(hex===SECRET_CODE_HASH){ secretKeyBuffer=''; unlockLightning(); }
+          const match = SECRET_CODES.find(c=>c.hash===hex);
+          if(match){ secretKeyBuffer=''; unlockCharacter(match.key, match.emoji); }
         });
       }
     }
@@ -1656,6 +1733,9 @@ window.addEventListener('keydown',(e)=>{
     if(selectedCharacter==='lightning' && lightningCooldown<=0){
       lightningCooldown = LIGHTNING_STRIKE_COOLDOWN;
       triggerLightningStrike();
+    } else if(selectedCharacter==='flame' && flameCooldown<=0){
+      flameCooldown = FLAME_BURN_COOLDOWN;
+      triggerFlameBurn();
     } else if(selectedCharacter==='rabbit' && skillUsesLeft>0){
       skillUsesLeft--;
       triggerRabbitLeap();
@@ -1721,7 +1801,7 @@ function updateHUD(){
   updateComboBig();
   weatherBadgeEl.classList.toggle('show', state===STATE.RUNNING && weather==='rain');
   finishBadgeEl.classList.toggle('show', state===STATE.RUNNING && playerFinished);
-  const showSkillBadge = (state===STATE.READY||state===STATE.GO||state===STATE.RUNNING) && selectedCharacter!=='lightning' && selectedCharacter!=='stickman';
+  const showSkillBadge = (state===STATE.READY||state===STATE.GO||state===STATE.RUNNING) && selectedCharacter!=='lightning' && selectedCharacter!=='stickman' && selectedCharacter!=='flame';
   skillBadge.style.display = showSkillBadge? 'flex':'none';
   if(showSkillBadge){
     let dotsHtml='';
@@ -1768,6 +1848,7 @@ function update(dt){
     aiState.forEach(a=>{
       if(a.slowTimer>0){ a.slowTimer=Math.max(0,a.slowTimer-dt); if(a.slowTimer===0) a.slowMul=1; }
       if(a.barkAnimTimer>0) a.barkAnimTimer=Math.max(0,a.barkAnimTimer-dt);
+      if(a.burnTimer>0) a.burnTimer=Math.max(0,a.burnTimer-dt);
       a.catchupTimer -= dt;
       if(a.catchupTimer<=0){
         a.catchupTimer = rand(...CONFIG.AI_CATCHUP_INTERVAL);
@@ -1812,7 +1893,7 @@ function update(dt){
       }
       if(a.dist<CONFIG.TRACK_LENGTH){
         const rainMul = weather==='rain'? CHARACTERS[a.character].rainImpulseMul : 1;
-        a.dist = Math.min(CONFIG.TRACK_LENGTH, a.dist + a.pace*a.slowMul*rainMul*dt);
+        a.dist = Math.max(0, Math.min(CONFIG.TRACK_LENGTH, a.dist + a.pace*a.slowMul*rainMul*dt));
         a.runPhase = (a.runPhase||0) + (0.6+a.pace*a.slowMul*rainMul*0.9)*dt*6;
         if(a.dist>=CONFIG.TRACK_LENGTH) a.finishTime = elapsed;
       }
@@ -1848,6 +1929,7 @@ function update(dt){
   if(rabbitLeapTimer>0) rabbitLeapTimer=Math.max(0,rabbitLeapTimer-dt);
   if(dogBarkTimer>0) dogBarkTimer=Math.max(0,dogBarkTimer-dt);
   if(lightningCooldown>0) lightningCooldown=Math.max(0,lightningCooldown-dt);
+  if(flameCooldown>0) flameCooldown=Math.max(0,flameCooldown-dt);
   if(lightningStrikeAnimTimer>0) lightningStrikeAnimTimer=Math.max(0,lightningStrikeAnimTimer-dt);
   if(shakeTime>0){ shakeTime-=dt; if(shakeTime<0) shakeTime=0; }
   if(flashAlpha>0) flashAlpha=Math.max(0, flashAlpha-dt*2.6);
@@ -1899,6 +1981,7 @@ function render(){
       drawRunner({ x:sx, groundY:laneY, phase:a.runPhase||0, speedRatio:aiSpeedRatio,
         jersey:acs.color, skin:acs.skin, scale:acs.scale, alpha:0.85, bib:String(i+2), animal:acs.animal });
       if(a.barkAnimTimer>0) drawBarkRings(sx, laneY-70, DOG_BARK_ANIM_DUR-a.barkAnimTimer, DOG_BARK_ANIM_DUR);
+      if(a.burnTimer>0) drawFireOnCharacter(sx, laneY-40, FLAME_BURN_SLOW_DUR-a.burnTimer, FLAME_BURN_SLOW_DUR);
       if(lightningStrikeAnimTimer>0){
         drawLightningBolt(sx, laneY-40, LIGHTNING_STRIKE_ANIM_DUR-lightningStrikeAnimTimer, LIGHTNING_STRIKE_ANIM_DUR);
       }
