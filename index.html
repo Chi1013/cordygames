@@ -304,6 +304,9 @@ const CONFIG = {
   TURTLE_RAIN_SLIDE_DIST: 9,
   AI_CATCHUP_DIST: 5,
   AI_CATCHUP_INTERVAL: [4, 8],
+  SPEED_CHECK_DELAY: 1.0,
+  SPEED_CHECK_MARGIN: 1.15,
+  SPEED_CHECK_OVERTAKE_LEAD: 8,
   // CPUs get a random character each race for looks + passive rain effects. No
   // combo system for them though, so skills fire on a timer+reroll instead of a
   // simulated combo count. Stickman excluded — an AI that can coin-flip an instant
@@ -1250,6 +1253,8 @@ let state = STATE.MENU;
 let distance=0, speed=0, phase=0, lastSide=null, combo=0;
 let elapsed=0, raceStartPerf=0, finishTime=0;
 let playerFinished=false, playerFinishTime=0;
+let raceToken=null;
+let speedFlagged=false;
 let readyTimer=0, countdownValue=3, goFlashTimer=0, falseStartTimer=0;
 let flashAlpha=0;
 let shakeMag=0, shakeTime=0, shakeDur=0.001;
@@ -1323,9 +1328,9 @@ function submitScore(time){
   const name = (playerName||'').trim() || 'ANON';
   fetch(LEADERBOARD_API_URL, {
     method:'POST',
-    body: JSON.stringify({ name, time, difficulty:selectedDifficulty, character:selectedCharacter }),
+    body: JSON.stringify({ name, time, difficulty:selectedDifficulty, character:selectedCharacter, token:raceToken }),
   }).then(r=>r.json()).then(data=>{
-    if(data && data.ok===false && data.error==='cheat_detected' && cheatWarningEl){
+    if(data && data.ok===false && cheatWarningEl){
       cheatWarningEl.textContent = '⚠️ Please do not use cheats to challenge this game — score not added to the leaderboard.';
     }
   }).catch(()=>{});
@@ -1419,6 +1424,13 @@ function enterReady(){
   state=STATE.READY;
   distance=0; speed=0; phase=0; lastSide=null; combo=0; elapsed=0;
   playerFinished=false; playerFinishTime=0;
+  raceToken=null;
+  speedFlagged=false;
+  if(LEADERBOARD_API_URL){
+    fetch(LEADERBOARD_API_URL+'?action=start').then(r=>r.json()).then(data=>{
+      if(data && data.ok && data.token) raceToken=data.token;
+    }).catch(()=>{});
+  }
   skillUsesLeft=CONFIG.SKILL_USE_LIMIT;
   playerSlowMul=1; playerSlowTimer=0;
   lightningCooldown=0; lightningStrikeAnimTimer=0;
@@ -1834,7 +1846,17 @@ function update(dt){
     if(playerSlowTimer>0){ playerSlowTimer=Math.max(0,playerSlowTimer-dt); if(playerSlowTimer===0) playerSlowMul=1; }
     distance=Math.min(CONFIG.TRACK_LENGTH, distance+speed*playerSlowMul*dt);
     phase += (0.6+speed*0.9)*dt*6;
-    
+
+    if(!speedFlagged && elapsed>CONFIG.SPEED_CHECK_DELAY){
+      const cap = CONFIG.MAX_SPEED*effectiveMaxSpeedMul(cs)*CONFIG.SPEED_CHECK_MARGIN;
+      if(distance/elapsed > cap){
+        speedFlagged=true;
+        aiState.forEach(a=>{
+          if(a.dist<CONFIG.TRACK_LENGTH) a.dist=Math.min(CONFIG.TRACK_LENGTH, distance+CONFIG.SPEED_CHECK_OVERTAKE_LEAD);
+        });
+      }
+    }
+
     const currentSpeedRatio = clamp(speed/(CONFIG.MAX_SPEED*effectiveMaxSpeedMul(cs)),0,1);
 
     if(currentSpeedRatio > 0.7) {
